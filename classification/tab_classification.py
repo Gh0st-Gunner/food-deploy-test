@@ -244,15 +244,16 @@ def tab_classification():
     st.divider()
     st.subheader("Nutrition")
 
-    nutrition_result = None
     nutrients = {}
     nutrition_source = ""
+    nutrition_errors = []
 
     t0 = time.time()
     nutrition_result = lookup_nutrition(class_name, usda_key=api_key, fatsecret_id=fatsecret_id, fatsecret_secret=fatsecret_secret)
-    if nutrition_result:
+    if nutrition_result and nutrition_result.get("nutrients"):
         nutrients = nutrition_result["nutrients"]
         nutrition_source = nutrition_result["source"]
+        nutrition_errors = nutrition_result.get("errors", [])
         col1, col2 = st.columns([1, 2])
         with col1:
             st.write(f"**{nutrition_source} Match:** {nutrition_result['description']}")
@@ -262,9 +263,15 @@ def tab_classification():
         with col2:
             display_nutrition_table(nutrients)
     elif api_key or (fatsecret_id and fatsecret_secret):
-        st.warning(
-            "No nutrition data found in USDA or FatSecret for this dish. "
-            "Try searching at [FoodData Central](https://fdc.nal.usda.gov/) or [FatSecret](https://www.fatsecret.com/)."
+        # Show what went wrong
+        msg = "No nutrition data found for this dish."
+        if nutrition_result and nutrition_result.get("errors"):
+            msg += " Debug info:"
+            for err in nutrition_result["errors"]:
+                msg += f"\n- {err}"
+        st.warning(msg)
+        st.info(
+            "Try searching manually at [USDA](https://fdc.nal.usda.gov/) or [FatSecret](https://www.fatsecret.com/)."
         )
     else:
         st.info(

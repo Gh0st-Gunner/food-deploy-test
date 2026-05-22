@@ -1,4 +1,3 @@
-import hashlib
 import time
 import requests
 import streamlit as st
@@ -10,19 +9,20 @@ class FatSecretClient:
     """FatSecret API client for nutrition data, particularly good for Asian foods."""
 
     BASE_URL = "https://platform.fatsecret.com/rest/server.api"
+    TOKEN_URL = "https://oauth.fatsecret.com/connect/token"
 
     NUTRIENT_MAP = {
-        "calories": "Calories",
-        "protein": "Protein",
-        "total_fat": "Total fat",
-        "carbohydrates": "Carbohydrates",
-        "fiber": "Fiber",
-        "sugars": "Sugars",
-        "sodium": "Sodium",
-        "calcium": "Calcium",
-        "iron": "Iron",
-        "vitamin_c": "Vitamin C",
-        "vitamin_a": "Vitamin A",
+        "calories": "calories",
+        "protein": "protein",
+        "total_fat": "total_fat",
+        "carbohydrates": "carbohydrate",
+        "fiber": "fiber",
+        "sugars": "sugar",
+        "sodium": "sodium",
+        "calcium": "calcium",
+        "iron": "iron",
+        "vitamin_c": "vitamin_c",
+        "vitamin_a": "vitamin_a",
     }
 
     def __init__(self, client_id: str = "", client_secret: str = ""):
@@ -30,31 +30,53 @@ class FatSecretClient:
         self.client_secret = client_secret or FATSECRET_CLIENT_SECRET
         self._access_token = None
         self._token_expires = 0
+        self._last_error = None
 
     def _get_access_token(self):
         """Get OAuth2 access token using client credentials."""
         if self._access_token and time.time() < self._token_expires:
             return self._access_token
 
-        url = "https://oauth.fatsecret.com/connect/token"
-        data = {
-            "grant_type": "client_credentials",
-            "scope": "basic",
-        }
+        self._last_error = None
+
         try:
             resp = requests.post(
-                url,
+                self.TOKEN_URL,
                 auth=(self.client_id, self.client_secret),
-                data=data,
-                timeout=10,
+                data={
+                    "grant_type": "client_credentials",
+                    "scope": "basic",
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=15,
             )
-            resp.raise_for_status()
+
+            if resp.status_code != 200:
+                self._last_error = f"Token request failed (HTTP {resp.status_code}): {resp.text[:200]}"
+                return None
+
             token_data = resp.json()
+            if "access_token" not in token_data:
+                self._last_error = f"No access_token in response: {list(token_data.keys())}"
+                return None
+
             self._access_token = token_data["access_token"]
             self._token_expires = time.time() + token_data.get("expires_in", 86400) - 60
             return self._access_token
-        except requests.RequestException:
+
+        except requests.exceptions.ConnectionError:
+            self._last_error = "Connection error — check internet connection"
             return None
+        except requests.exceptions.Timeout:
+            self._last_error = "Request timed out"
+            return None
+        except Exception as e:
+            self._last_error = f"Unexpected error: {e}"
+            return None
+
+    @property
+    def last_error(self):
+        return self._last_error
 
     def search_food(self, query: str, max_results: int = 5):
         """Search FatSecret for a food by name. Returns first match or None."""
@@ -72,17 +94,29 @@ class FatSecretClient:
 
         try:
             resp = requests.get(self.BASE_URL, params=params, headers=headers, timeout=10)
-            resp.raise_for_status()
+            if resp.status_code != 200:
+                self._last_error = f"Search failed (HTTP {resp.status_code})"
+                return None
+
             data = resp.json()
+
+            # Check for API error
+            if "error" in data:
+                self._last_error = f"API error: {data['error'].get('message', data['error'])}"
+                return None
 
             foods = data.get("foods", {}).get("food", [])
             if isinstance(foods, dict):
                 foods = [foods]
             if foods:
                 return foods[0]
-        except requests.RequestException:
-            pass
-        return None
+
+            self._last_error = f"No results for '{query}'"
+            return None
+
+        except requests.RequestException as e:
+            self._last_error = f"Request error: {e}"
+            return None
 
     def get_food_details(self, food_id: str):
         """Get detailed nutrition for a food by its ID. Returns per-100g data."""
@@ -99,7 +133,9 @@ class FatSecretClient:
 
         try:
             resp = requests.get(self.BASE_URL, params=params, headers=headers, timeout=10)
-            resp.raise_for_status()
+            if resp.status_code != 200:
+                return None, {}
+
             data = resp.json()
 
             food = data.get("food", {})
@@ -121,7 +157,6 @@ class FatSecretClient:
             if not serving:
                 return food, {}
 
-            # Extract nutrients, normalizing to per-100g
             nutrients = self._extract_nutrients(serving)
             return food, nutrients
 
@@ -130,8 +165,6 @@ class FatSecretClient:
 
     def _extract_nutrients(self, serving: dict) -> dict:
         """Extract and normalize nutrients from a FatSecret serving to per-100g."""
-        # FatSecret gives values per serving; check if it's per 100g
-        serving_desc = serving.get("serving_description", "")
         metric = float(serving.get("metric_serving_amount", 100) or 100)
         unit = serving.get("metric_serving_unit", "g") or "g"
 
@@ -142,21 +175,7 @@ class FatSecretClient:
             factor = 1.0
 
         result = {}
-        fatsecret_fields = {
-            "calories": "calories",
-            "protein": "protein",
-            "total_fat": "total_fat",
-            "carbohydrates": "carbohydrate",
-            "fiber": "fiber",
-            "sugars": "sugar",
-            "sodium": "sodium",
-            "calcium": "calcium",
-            "iron": "iron",
-            "vitamin_c": "vitamin_c",
-            "vitamin_a": "vitamin_a",
-        }
-
-        for our_name, fs_key in fatsecret_fields.items():
+        for our_name, fs_key in self.NUTRIENT_MAP.items():
             value_str = serving.get(fs_key)
             if value_str:
                 try:
