@@ -17,10 +17,37 @@ PLATE_DIAMETER_CM = 25.0
 
 USDA_BASE_URL = "https://api.nal.usda.gov/fdc/v1"
 
+FATSECRET_CLIENT_ID = ""
+FATSECRET_CLIENT_SECRET = ""
+
 
 def get_usda_api_key():
     try:
-        return st.secrets.get("USDA_API_KEY", "")
+        key = st.secrets.get("USDA_API_KEY", "")
+        if key:
+            return key
     except Exception:
         pass
-    return os.environ.get("USDA_API_KEY", "")
+    key = os.environ.get("USDA_API_KEY", "")
+    if key:
+        return key
+    if "usda_api_key" in st.session_state:
+        return st.session_state.usda_api_key
+    return ""
+
+
+def get_fatsecret_credentials():
+    try:
+        cid = st.secrets.get("FATSECRET_CLIENT_ID", "")
+        cs = st.secrets.get("FATSECRET_CLIENT_SECRET", "")
+        if cid and cs:
+            return cid, cs
+    except Exception:
+        pass
+    cid = os.environ.get("FATSECRET_CLIENT_ID", "")
+    cs = os.environ.get("FATSECRET_CLIENT_SECRET", "")
+    if cid and cs:
+        return cid, cs
+    if "fatsecret_client_id" in st.session_state and "fatsecret_client_secret" in st.session_state:
+        return st.session_state.fatsecret_client_id, st.session_state.fatsecret_client_secret
+    return "", ""

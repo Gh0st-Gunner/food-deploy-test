@@ -12,13 +12,13 @@ from classification.model_loader import (
     load_onnx_model,
 )
 from classification.predict import predict, predict_onnx
-from config import get_usda_api_key, DEFAULT_BOX_THRESHOLD, DEFAULT_TEXT_THRESHOLD
+from config import get_usda_api_key, get_fatsecret_credentials, DEFAULT_BOX_THRESHOLD, DEFAULT_TEXT_THRESHOLD
 from nutrition.food_mapping import (
     USDA_SEARCH_TERMS,
     INGREDIENT_PROMPTS,
     TYPICAL_PORTION_GRAMS,
 )
-from nutrition.usda_client import USDAClient
+from nutrition.nutrition_provider import lookup_nutrition, lookup_ingredient_nutrition
 from nutrition.nutrition_display import display_nutrition_table, format_class_name
 from segmentation.grounding_dino_loader import load_grounding_dino
 from segmentation.sam2_loader import load_sam2
@@ -73,18 +73,33 @@ def tab_classification():
 
         st.divider()
 
-        st.subheader("USDA API Key")
+        st.subheader("Nutrition APIs")
         api_key = get_usda_api_key()
         if not api_key:
             api_key = st.text_input(
-                "API Key",
+                "USDA API Key",
                 type="password",
                 help="Free key at fdc.nal.usda.gov/api-key.html",
+                key="usda_key_sidebar",
             )
             if api_key:
                 st.session_state.usda_api_key = api_key
         else:
-            st.success("API key configured")
+            st.success("USDA API key configured")
+
+        fatsecret_id, fatsecret_secret = get_fatsecret_credentials()
+        if not fatsecret_id or not fatsecret_secret:
+            with st.expander("FatSecret (optional)", expanded=False):
+                st.caption("Better Asian food coverage. Free at platform.fatsecret.com")
+                fs_id = st.text_input("Client ID", type="password", key="fs_id_sidebar")
+                fs_secret = st.text_input("Client Secret", type="password", key="fs_secret_sidebar")
+                if fs_id and fs_secret:
+                    st.session_state.fatsecret_client_id = fs_id
+                    st.session_state.fatsecret_client_secret = fs_secret
+                    fatsecret_id = fs_id
+                    fatsecret_secret = fs_secret
+        else:
+            st.success("FatSecret configured")
 
         st.divider()
 
@@ -229,32 +244,33 @@ def tab_classification():
     st.divider()
     st.subheader("Nutrition")
 
-    food_data = None
+    nutrition_result = None
     nutrients = {}
+    nutrition_source = ""
 
     t0 = time.time()
-    if api_key:
-        client = USDAClient(api_key)
-        food_data = client.search_with_fallback(class_name, USDA_SEARCH_TERMS)
-        if food_data:
-            nutrients = client.get_nutrients(food_data)
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                st.write(f"**USDA Match:** {food_data.get('description', 'Unknown')}")
-                st.caption(f"FDC ID: {food_data.get('fdcId', 'N/A')}")
-                typical = TYPICAL_PORTION_GRAMS.get(class_name, 300)
-                st.info(f"Typical portion: ~{typical}g")
-            with col2:
-                display_nutrition_table(nutrients)
-        else:
-            st.warning(
-                "No USDA data found for this dish. "
-                "Try searching at [FoodData Central](https://fdc.nal.usda.gov/)."
-            )
+    nutrition_result = lookup_nutrition(class_name, usda_key=api_key, fatsecret_id=fatsecret_id, fatsecret_secret=fatsecret_secret)
+    if nutrition_result:
+        nutrients = nutrition_result["nutrients"]
+        nutrition_source = nutrition_result["source"]
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.write(f"**{nutrition_source} Match:** {nutrition_result['description']}")
+            st.caption(f"ID: {nutrition_result['food_id']}")
+            typical = TYPICAL_PORTION_GRAMS.get(class_name, 300)
+            st.info(f"Typical portion: ~{typical}g")
+        with col2:
+            display_nutrition_table(nutrients)
+    elif api_key or (fatsecret_id and fatsecret_secret):
+        st.warning(
+            "No nutrition data found in USDA or FatSecret for this dish. "
+            "Try searching at [FoodData Central](https://fdc.nal.usda.gov/) or [FatSecret](https://www.fatsecret.com/)."
+        )
     else:
         st.info(
-            "Add your USDA API key in the sidebar to view nutrition data. "
-            "Get a free key at [fdc.nal.usda.gov/api-key.html](https://fdc.nal.usda.gov/api-key.html)."
+            "Add a USDA API key or FatSecret credentials in the sidebar to view nutrition data.\n"
+            "- USDA: free key at [fdc.nal.usda.gov/api-key.html](https://fdc.nal.usda.gov/api-key.html)\n"
+            "- FatSecret: free at [platform.fatsecret.com](https://platform.fatsecret.com/)"
         )
     timings["Nutrition"] = time.time() - t0
 
@@ -304,16 +320,19 @@ def tab_classification():
                     )
 
             # Per-ingredient nutrition
-            if api_key and ingredient_results:
+            if (api_key or (fatsecret_id and fatsecret_secret)) and ingredient_results:
                 st.write("**Per-ingredient nutrition:**")
                 for ing in ingredient_results:
                     label = ing.get("label", "").rstrip(".")
                     confidence = ing.get("confidence", 0)
                     with st.expander(f"{label} ({confidence:.0%})"):
-                        ing_data = client.search_food(label)
-                        if ing_data:
-                            ing_nutrients = client.get_nutrients(ing_data)
-                            for name, info in ing_nutrients.items():
+                        ing_result = lookup_ingredient_nutrition(
+                            label, usda_key=api_key,
+                            fatsecret_id=fatsecret_id, fatsecret_secret=fatsecret_secret,
+                        )
+                        if ing_result and ing_result.get("nutrients"):
+                            st.caption(f"Source: {ing_result['source']}")
+                            for name, info in ing_result["nutrients"].items():
                                 value = info.get("value", 0)
                                 unit = info.get("unit", "")
                                 if value > 0:
@@ -321,7 +340,7 @@ def tab_classification():
                                         f"**{name.replace('_', ' ').title()}**: {value:.1f} {unit}"
                                     )
                         else:
-                            st.info("No USDA data found for this ingredient.")
+                            st.info("No nutrition data found for this ingredient.")
         else:
             st.info("No ingredients detected for this dish.")
     else:
@@ -377,7 +396,7 @@ def tab_classification():
         st.metric("Scaling Method", result["scaling_method"].replace("_", " ").title())
         st.metric("Food Density", f"{result['density_used']:.2f} kg/L")
 
-        if api_key and food_data:
+        if nutrients:
             multiplier = result["nutrient_multiplier"]
             st.divider()
             st.write(f"**Adjusted nutrition for ~{result['estimated_weight_grams']:.0f}g portion:**")
