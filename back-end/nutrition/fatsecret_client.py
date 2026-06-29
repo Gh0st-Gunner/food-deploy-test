@@ -1,6 +1,5 @@
 import time
 import requests
-import streamlit as st
 
 from config import FATSECRET_CLIENT_ID, FATSECRET_CLIENT_SECRET
 
@@ -80,6 +79,11 @@ class FatSecretClient:
 
     def search_food(self, query: str, max_results: int = 5):
         """Search FatSecret for a food by name. Returns first match or None."""
+        from core.cache import get_fatsecret_cached, set_fatsecret_cached
+        cached = get_fatsecret_cached(query)
+        if cached is not None:
+            return cached
+
         token = self._get_access_token()
         if not token:
             return None
@@ -109,6 +113,7 @@ class FatSecretClient:
             if isinstance(foods, dict):
                 foods = [foods]
             if foods:
+                set_fatsecret_cached(query, foods[0])
                 return foods[0]
 
             self._last_error = f"No results for '{query}'"
@@ -190,7 +195,6 @@ class FatSecretClient:
         return result
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
 def cached_fatsecret_search(client_id: str, client_secret: str, query: str, max_results: int = 5):
     client = FatSecretClient(client_id, client_secret)
     return client.search_food(query, max_results)

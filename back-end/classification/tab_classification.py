@@ -18,7 +18,9 @@ from nutrition.food_mapping import (
     INGREDIENT_PROMPTS,
     TYPICAL_PORTION_GRAMS,
 )
+from nutrition.usda_client import get_rate_limit
 from nutrition.nutrition_provider import lookup_nutrition, lookup_ingredient_nutrition
+from nutrition.nutrition_cache import lookup_nutrition_cached, lookup_ingredient_nutrition_cached
 from nutrition.nutrition_display import display_nutrition_table, format_class_name
 from segmentation.grounding_dino_loader import load_grounding_dino
 from segmentation.sam2_loader import load_sam2
@@ -86,6 +88,13 @@ def tab_classification():
                 st.session_state.usda_api_key = api_key
         else:
             st.success("USDA API key configured")
+            if st.button("API Quota", key="usda_quota_btn"):
+                limit, remaining = get_rate_limit(api_key)
+                if limit is not None:
+                    used = limit - remaining
+                    st.info(f"**{remaining:,}** / {limit:,} calls remaining\n\n({used:,} used this hour)")
+                else:
+                    st.warning("Could not fetch quota info")
 
         fatsecret_id, fatsecret_secret = get_fatsecret_credentials()
         if not fatsecret_id or not fatsecret_secret:
@@ -249,7 +258,7 @@ def tab_classification():
     nutrition_errors = []
 
     t0 = time.time()
-    nutrition_result = lookup_nutrition(class_name, usda_key=api_key, fatsecret_id=fatsecret_id, fatsecret_secret=fatsecret_secret)
+    nutrition_result = lookup_nutrition_cached(class_name, usda_key=api_key, fatsecret_id=fatsecret_id, fatsecret_secret=fatsecret_secret)
     if nutrition_result and nutrition_result.get("nutrients"):
         nutrients = nutrition_result["nutrients"]
         nutrition_source = nutrition_result["source"]
@@ -333,7 +342,7 @@ def tab_classification():
                     label = ing.get("label", "").rstrip(".")
                     confidence = ing.get("confidence", 0)
                     with st.expander(f"{label} ({confidence:.0%})"):
-                        ing_result = lookup_ingredient_nutrition(
+                        ing_result = lookup_ingredient_nutrition_cached(
                             label, usda_key=api_key,
                             fatsecret_id=fatsecret_id, fatsecret_secret=fatsecret_secret,
                         )
@@ -366,6 +375,7 @@ def tab_classification():
             image=image,
             class_name=class_name,
             depth_pipeline=depth_pipeline,
+            ingredient_masks=ingredient_results if ingredient_results else None,
             reference_height_cm=reference_height_cm,
         )
     timings["Portion"] = time.time() - t0
@@ -375,33 +385,39 @@ def tab_classification():
     col_depth, col_info = st.columns([1, 1])
 
     with col_depth:
-        depth_map = result["depth_map"]
-        depth_colored = (depth_map * 255).astype(np.uint8)
-        depth_image = Image.fromarray(np.stack([depth_colored] * 3, axis=-1))
-        st.image(depth_image, caption="Depth Map (brighter = closer)", use_container_width=True)
+        depth_map = result.get("depth_map")
+        if depth_map is not None:
+            depth_colored = (depth_map * 255).astype(np.uint8)
+            depth_image = Image.fromarray(np.stack([depth_colored] * 3, axis=-1))
+            st.image(depth_image, caption="Depth Map (brighter = closer)", use_container_width=True)
 
-        try:
-            import plotly.graph_objects as go
+            try:
+                import plotly.graph_objects as go
 
-            step = max(1, depth_map.shape[0] // 100)
-            z = depth_map[::step, ::step]
-            fig = go.Figure(data=[go.Surface(z=z)])
-            fig.update_layout(
-                scene=dict(zaxis_title="Depth"),
-                margin=dict(l=0, r=0, t=30, b=0),
-                title=f"Surface: {display_name}",
-            )
-            fig.update_traces(colorscale="Viridis", showscale=True)
-            st.plotly_chart(fig, use_container_width=True)
-        except ImportError:
-            pass
+                step = max(1, depth_map.shape[0] // 100)
+                z = depth_map[::step, ::step]
+                fig = go.Figure(data=[go.Surface(z=z)])
+                fig.update_layout(
+                    scene=dict(zaxis_title="Depth"),
+                    margin=dict(l=0, r=0, t=30, b=0),
+                    title=f"Surface: {display_name}",
+                )
+                fig.update_traces(colorscale="Viridis", showscale=True)
+                st.plotly_chart(fig, use_container_width=True)
+            except ImportError:
+                pass
+        else:
+            st.info("Depth visualization unavailable")
 
     with col_info:
+        method_label = result["scaling_method"].replace("_", " ").title()
         st.metric("Estimated Weight", f"{result['estimated_weight_grams']:.0f} g")
         st.metric("Estimated Volume", f"{result['estimated_volume_ml']:.0f} mL")
         st.metric("Typical Portion", f"{result['typical_portion_grams']} g")
-        st.metric("Scaling Method", result["scaling_method"].replace("_", " ").title())
+        st.metric("Method", method_label)
         st.metric("Food Density", f"{result['density_used']:.2f} kg/L")
+        if result.get("area_ratio"):
+            st.metric("Dish Area Ratio", f"{result['area_ratio']:.1%}")
 
         if nutrients:
             multiplier = result["nutrient_multiplier"]
@@ -415,8 +431,8 @@ def tab_classification():
                     st.write(f"**{name.replace('_', ' ').title()}**: {value:.1f} {unit}")
 
     st.caption(
-        "This is an approximate estimation based on monocular depth estimation. "
-        "Results may vary significantly. Not a substitute for weighing food."
+        "Portion estimate uses dish area ratio (via segmentation) scaled against typical portions. "
+        "Depth map is for visualization only. Not a substitute for weighing food."
     )
 
     # ============================================================

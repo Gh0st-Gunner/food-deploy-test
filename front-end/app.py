@@ -1,3 +1,12 @@
+import sys
+import os
+
+# Add back-end and front-end paths to sys.path so imports remain unbroken
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, os.path.join(parent_dir, "back-end"))
+sys.path.insert(0, current_dir)
+
 """
 Vietnamese Food Classifier - Streamlit App
 Features: Multi-model classification, ingredient detection, nutrition lookup, portion estimation

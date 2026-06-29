@@ -3,13 +3,15 @@ import glob
 import json
 import warnings
 
-import streamlit as st
 import torch
 import torch.nn as nn
 from torchvision import models
 import onnxruntime as ort
 
 from config import MODELS_DIR, MODELS_DIR_FALLBACK
+
+_cached_models = {}
+_cached_onnx = {}
 
 
 def get_available_models():
@@ -53,19 +55,24 @@ def load_class_names_metadata(model_path, checkpoint=None):
     return []
 
 
-@st.cache_resource
 def load_onnx_model(model_path):
+    if model_path in _cached_onnx:
+        return _cached_onnx[model_path]
     try:
         session = ort.InferenceSession(model_path)
         input_name = session.get_inputs()[0].name
         class_names = load_class_names_metadata(model_path)
-        return session, input_name, class_names
+        result = (session, input_name, class_names)
+        _cached_onnx[model_path] = result
+        return result
     except Exception:
         return None, None, []
 
 
-@st.cache_resource
 def load_model(checkpoint_path):
+    if checkpoint_path in _cached_models:
+        return _cached_models[checkpoint_path]
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     try:
         checkpoint = torch.load(checkpoint_path, map_location=device)
@@ -126,4 +133,7 @@ def load_model(checkpoint_path):
     accuracy = checkpoint.get("val_acc", checkpoint.get("best_acc", "N/A"))
     model = model.to(device)
     model.eval()
-    return model, class_names, device, model_name, accuracy
+
+    result = (model, class_names, device, model_name, accuracy)
+    _cached_models[checkpoint_path] = result
+    return result

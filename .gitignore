@@ -1,6 +1,9 @@
 # API keys
 .streamlit/secrets.toml
 
+# Environment variables
+.env
+
 # Model files (large)
 models/*.pth
 models/*.onnx
@@ -23,3 +26,8 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Credentials
+fatsecret.txt
+
+/storage

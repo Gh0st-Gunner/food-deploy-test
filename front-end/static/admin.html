@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - VN Food Classifier</title>
+  <link rel="stylesheet" href="admin.css?v=1.0.3">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js CDN for Analytics Charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <!-- Dynamic background glowing shapes -->
+  <div class="bg-glow"></div>
+  <div class="bg-glow-left"></div>
+
+  <!-- AUTHENTICATION VIEW -->
+  <div id="auth-view">
+    <div class="auth-card">
+      <div class="auth-header">
+        <h1>VN Food Classifier</h1>
+        <p>Quản trị viên Đăng nhập</p>
+      </div>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="login-username">Tên đăng nhập</label>
+          <input type="text" id="login-username" class="form-control" required placeholder="Nhập tên đăng nhập...">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Mật khẩu</label>
+          <input type="password" id="login-password" class="form-control" required placeholder="Nhập mật khẩu...">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">
+          <i class="fa-solid fa-right-to-bracket"></i> Đăng nhập
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- DASHBOARD VIEW -->
+  <div id="dashboard-view" style="display: none;">
+    
+    <!-- Top Navigation Header -->
+    <header class="nav-header">
+      <div class="brand-title">
+        <h2>VN Food Admin</h2>
+        <p>Quản trị hệ thống & Người dùng</p>
+      </div>
+      <div class="user-profile">
+        <div class="user-info">
+          <div class="username" id="display-username">Admin</div>
+          <span class="role" id="display-role">ADMIN</span>
+        </div>
+        <button id="btn-logout" class="btn btn-secondary">
+          <i class="fa-solid fa-right-from-bracket"></i> Đăng xuất
+        </button>
+      </div>
+    </header>
+
+    <!-- Metrics Cards Grid -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-details">
+          <p>Tổng Người Dùng</p>
+          <h3 id="stat-total-users">0</h3>
+        </div>
+        <div class="metric-icon icon-blue">
+          <i class="fa-solid fa-users"></i>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-details">
+          <p>Phiên Hoạt Động</p>
+          <h3 id="stat-active-sessions">0</h3>
+        </div>
+        <div class="metric-icon icon-emerald">
+          <i class="fa-solid fa-key"></i>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-details">
+          <p>Tổng Yêu Cầu Phân Tích</p>
+          <h3 id="stat-total-jobs">0</h3>
+        </div>
+        <div class="metric-icon icon-amber">
+          <i class="fa-solid fa-chart-line"></i>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-details">
+          <p>Phân Tích Thất Bại</p>
+          <h3 id="stat-failed-jobs">0</h3>
+        </div>
+        <div class="metric-icon icon-red">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+      </div>
+    </section>
+
+    <!-- Content Grid Layout -->
+    <main class="content-grid">
+      
+      <!-- Left Box: User Management Table -->
+      <section class="section-box">
+        <div class="section-header">
+          <h3><i class="fa-solid fa-users-gear"></i> Danh sách người dùng</h3>
+          <button id="btn-open-create-modal" class="btn btn-success">
+            <i class="fa-solid fa-user-plus"></i> Thêm người dùng
+          </button>
+        </div>
+        <div class="table-container">
+          <table class="users-table">
+            <thead>
+              <tr>
+                <th>Tên người dùng</th>
+                <th>Vai trò</th>
+                <th>Trạng thái</th>
+                <th>Ngày tạo</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="users-table-body">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Right Box: Analytics & Database Status -->
+      <aside class="section-box">
+        <div class="section-header">
+          <h3><i class="fa-solid fa-server"></i> Trạng thái hệ thống</h3>
+        </div>
+        
+        <div style="margin-bottom: 30px; text-align: center;">
+          <h4 style="margin-bottom: 15px; font-size: 14px; color: var(--text-secondary);">Tỉ lệ thành công của tác vụ</h4>
+          <div style="max-height: 200px; display: flex; justify-content: center;">
+            <canvas id="jobChart" width="200" height="200"></canvas>
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid var(--border-color); padding-top: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="color: var(--text-secondary); font-size: 14px;">Cơ sở dữ liệu (SQLite)</span>
+            <span class="badge badge-active" id="db-health-badge">Hoạt động</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: var(--text-secondary); font-size: 14px;">Hệ thống tệp (Storage)</span>
+            <span class="badge badge-active">Hoạt động</span>
+          </div>
+        </div>
+      </aside>
+
+    </main>
+
+  </div>
+
+  <!-- MODALS -->
+  
+  <!-- Create User Modal -->
+  <div class="modal-overlay" id="create-user-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-user-plus"></i> Thêm người dùng mới</h3>
+      </div>
+      <form id="create-user-form">
+        <div class="form-group">
+          <label for="create-username">Tên người dùng</label>
+          <input type="text" id="create-username" class="form-control" required placeholder="Nhập tên người dùng...">
+        </div>
+        <div class="form-group">
+          <label for="create-password">Mật khẩu</label>
+          <input type="password" id="create-password" class="form-control" required placeholder="Nhập mật khẩu...">
+        </div>
+        <div class="form-group">
+          <label for="create-role">Vai trò</label>
+          <select id="create-role" class="form-control">
+            <option value="user">Người dùng (User)</option>
+            <option value="admin">Quản trị viên (Admin)</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-close-btn">Hủy</button>
+          <button type="submit" class="btn btn-success">Tạo người dùng</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit User Modal -->
+  <div class="modal-overlay" id="edit-user-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-user-pen"></i> Chỉnh sửa người dùng</h3>
+      </div>
+      <form id="edit-user-form">
+        <input type="hidden" id="edit-user-id">
+        <div class="form-group">
+          <label for="edit-username">Tên người dùng</label>
+          <input type="text" id="edit-username" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-password">Mật khẩu mới (Để trống nếu không đổi)</label>
+          <input type="password" id="edit-password" class="form-control" placeholder="Nhập mật khẩu mới...">
+        </div>
+        <div class="form-group">
+          <label for="edit-role">Vai trò</label>
+          <select id="edit-role" class="form-control">
+            <option value="user">Người dùng (User)</option>
+            <option value="admin">Quản trị viên (Admin)</option>
+          </select>
+        </div>
+        <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+          <input type="checkbox" id="edit-active" style="width: 18px; height: 18px; cursor: pointer;">
+          <label for="edit-active" style="margin-bottom: 0; cursor: pointer;">Cho phép hoạt động (Active)</label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-close-btn">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirm Delete Modal -->
+  <div class="modal-overlay" id="delete-confirm-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-circle-exclamation" style="color: var(--accent-red);"></i> Xác nhận xóa</h3>
+      </div>
+      <p style="color: var(--text-secondary); margin-bottom: 20px;">
+        Bạn có chắc chắn muốn xóa người dùng <strong id="delete-username-label"></strong>? Hành động này không thể hoàn tác.
+      </p>
+      <input type="hidden" id="delete-user-id">
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary modal-close-btn">Hủy</button>
+        <button type="button" id="btn-confirm-delete" class="btn btn-danger">Xóa người dùng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Area -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Script Integration -->
+  <script src="admin.js?v=1.0.3"></script>
+</body>
+</html>

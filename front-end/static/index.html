@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Munchin' - Track Your Diet Journey</title>
+    <!-- Google Fonts: Poppins for clean modern Figma typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="index.css?v=1.0.3">
+</head>
+<body>
+    <div class="phone-container">
+        <!-- Status Bar Simulator -->
+        <div class="status-bar">
+            <span class="time" id="status-time">09:41</span>
+            <div class="status-icons">
+                <i class="fa-solid fa-signal"></i>
+                <i class="fa-solid fa-wifi"></i>
+                <i class="fa-solid fa-battery-full"></i>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             ONBOARDING SCREENS (Welcome & Survey)
+             ========================================== -->
+        <div id="onboarding-flow" class="flow-container active">
+            <!-- Screen 1: Welcome -->
+            <div class="onboarding-screen active" id="screen-welcome">
+                <div class="welcome-header">
+                    <span class="brand-logo"><i class="fa-solid fa-leaf text-green"></i> Munchin'</span>
+                </div>
+                <div class="welcome-illustration">
+                    <!-- Dynamic healthy bowl representation -->
+                    <div class="salad-bowl">
+                        <div class="ingredient leaf-1"><i class="fa-solid fa-seedling"></i></div>
+                        <div class="ingredient tomato"><i class="fa-solid fa-circle text-coral"></i></div>
+                        <div class="ingredient egg"><i class="fa-solid fa-egg"></i></div>
+                        <div class="ingredient avocado"><i class="fa-solid fa-lemon"></i></div>
+                        <div class="bowl-base"><i class="fa-solid fa-bowl-food"></i></div>
+                    </div>
+                </div>
+                <div class="welcome-text">
+                    <h2>Track Your Nutrition, Transform Your Health</h2>
+                    <p>Stay healthy by tracking every meal with instant AI portion and calorie detection.</p>
+                </div>
+                <div class="onboarding-footer">
+                    <button class="btn btn-green btn-block" id="welcome-continue-btn">Continue <i class="fa-solid fa-arrow-right"></i></button>
+                </div>
+            </div>
+
+            <!-- Screen 2: Gender Selector -->
+            <div class="onboarding-screen" id="screen-gender">
+                <div class="survey-header">
+                    <button class="survey-back-btn"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="survey-progress-dot">1 of 4</span>
+                </div>
+                <div class="survey-body">
+                    <h2>What's your gender?</h2>
+                    <p>This helps us customize your baseline basal metabolic rate (BMR).</p>
+                    
+                    <div class="selection-cards">
+                        <div class="selection-card" data-gender="female">
+                            <div class="card-icon"><i class="fa-solid fa-venus"></i></div>
+                            <h3>Female</h3>
+                        </div>
+                        <div class="selection-card" data-gender="male">
+                            <div class="card-icon"><i class="fa-solid fa-mars"></i></div>
+                            <h3>Male</h3>
+                        </div>
+                        <div class="selection-card" data-gender="other">
+                            <div class="card-icon"><i class="fa-solid fa-genderless"></i></div>
+                            <h3>Other</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="onboarding-footer double-btn">
+                    <button class="btn btn-secondary" id="gender-skip-btn">Skip</button>
+                    <button class="btn btn-green" id="gender-continue-btn" disabled>Continue</button>
+                </div>
+            </div>
+
+            <!-- Screen 3: Age Selector -->
+            <div class="onboarding-screen" id="screen-age">
+                <div class="survey-header">
+                    <button class="survey-back-btn"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="survey-progress-dot">2 of 4</span>
+                </div>
+                <div class="survey-body">
+                    <h2>What's your Age?</h2>
+                    <p>Age plays a vital role in daily calorie burn estimation.</p>
+                    
+                    <div class="wheel-picker-container">
+                        <div class="wheel-picker-fade top"></div>
+                        <div class="wheel-picker" id="age-picker">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div class="wheel-picker-fade bottom"></div>
+                        <div class="wheel-indicator"></div>
+                    </div>
+                </div>
+                <div class="onboarding-footer double-btn">
+                    <button class="btn btn-secondary" id="age-skip-btn">Skip</button>
+                    <button class="btn btn-green" id="age-continue-btn">Continue</button>
+                </div>
+            </div>
+
+            <!-- Screen 4: Weight Selector -->
+            <div class="onboarding-screen" id="screen-weight">
+                <div class="survey-header">
+                    <button class="survey-back-btn"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="survey-progress-dot">3 of 4</span>
+                </div>
+                <div class="survey-body">
+                    <h2>What's your weight?</h2>
+                    <p>Enter your current weight. You can change units below.</p>
+                    
+                    <div class="weight-display-container">
+                        <span class="weight-value" id="weight-value-label">62</span>
+                        <div class="unit-toggle" id="weight-unit-toggle">
+                            <button class="unit-btn active" data-unit="kg">Kg</button>
+                            <button class="unit-btn" data-unit="lbs">Lbs</button>
+                        </div>
+                    </div>
+
+                    <div class="scale-slider-container">
+                        <input type="range" id="weight-slider" min="30" max="150" value="62" class="scale-slider">
+                        <div class="scale-ticks">
+                            <span>|</span><span>|</span><span>|</span><span>|</span><span>|</span><span>|</span><span>|</span><span>|</span><span>|</span><span>|</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="onboarding-footer double-btn">
+                    <button class="btn btn-secondary" id="weight-skip-btn">Skip</button>
+                    <button class="btn btn-green" id="weight-continue-btn">Continue</button>
+                </div>
+            </div>
+
+            <!-- Screen 5: Goal Selector -->
+            <div class="onboarding-screen" id="screen-goal">
+                <div class="survey-header">
+                    <button class="survey-back-btn"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="survey-progress-dot">4 of 4</span>
+                </div>
+                <div class="survey-body">
+                    <h2>What goal do you have in mind?</h2>
+                    <p>We'll calculate your calorie requirements based on this.</p>
+                    
+                    <div class="selection-cards">
+                        <div class="selection-card row-card" data-goal="lose">
+                            <div class="card-icon text-coral"><i class="fa-solid fa-arrow-down-long"></i></div>
+                            <div class="card-details">
+                                <h3>Lose weight</h3>
+                                <p>Calorie deficit to reduce weight safely</p>
+                            </div>
+                        </div>
+                        <div class="selection-card row-card" data-goal="maintain">
+                            <div class="card-icon text-green"><i class="fa-solid fa-scale-balanced"></i></div>
+                            <div class="card-details">
+                                <h3>Maintain weight</h3>
+                                <p>Energy balance to maintain your current physique</p>
+                            </div>
+                        </div>
+                        <div class="selection-card row-card" data-goal="gain">
+                            <div class="card-icon text-purple"><i class="fa-solid fa-arrow-up-long"></i></div>
+                            <div class="card-details">
+                                <h3>Gain weight</h3>
+                                <p>Calorie surplus to support muscle/mass growth</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="onboarding-footer double-btn">
+                    <button class="btn btn-secondary" id="goal-skip-btn">Skip</button>
+                    <button class="btn btn-green" id="goal-continue-btn" disabled>Complete</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             AUTHENTICATION SCREEN (Sign In / Register)
+             ========================================== -->
+        <div id="auth-flow" class="flow-container">
+            <div class="auth-screen">
+                <div class="auth-header">
+                    <span class="brand-logo"><i class="fa-solid fa-leaf text-green"></i> Munchin'</span>
+                    <h2 id="auth-title">Create Account</h2>
+                    <p id="auth-subtitle">Join us to start tracking your healthy lifestyle</p>
+                </div>
+
+                <div class="auth-body">
+                    <!-- Signup Form -->
+                    <form id="signup-form">
+                        <div class="form-group">
+                            <label for="reg-name">Full Name</label>
+                            <input type="text" id="reg-name" class="form-control" placeholder="Akshay Rajput" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="reg-username">Username</label>
+                            <input type="text" id="reg-username" class="form-control" placeholder="akshay89" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="reg-password">Password</label>
+                            <div class="password-wrapper">
+                                <input type="password" id="reg-password" class="form-control" placeholder="••••••••" required>
+                                <button type="button" class="password-toggle-btn" tabindex="-1" title="Show password"><i class="fa-regular fa-eye"></i></button>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-green btn-block" style="margin-top: 16px;">Sign Up</button>
+                    </form>
+
+                    <!-- Signin Form (Hidden initially) -->
+                    <form id="signin-form" style="display: none;">
+                        <div class="form-group">
+                            <label for="login-username">Username</label>
+                            <input type="text" id="login-username" class="form-control" placeholder="Username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="login-password">Password</label>
+                            <div class="password-wrapper">
+                                <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
+                                <button type="button" class="password-toggle-btn" tabindex="-1" title="Show password"><i class="fa-regular fa-eye"></i></button>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-green btn-block" style="margin-top: 16px;">Sign In</button>
+                    </form>
+                </div>
+
+                <div class="auth-footer">
+                    <span id="auth-toggle-msg">Already have an account? <a href="#" id="auth-toggle-link">Sign In</a></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             MAIN APPLICATION SHELL (Tab Screens)
+             ========================================== -->
+        <div id="app-shell" class="flow-container">
+            <!-- Header for Dashboard / Home -->
+            <header class="main-header" id="main-header">
+                <div class="user-avatar-badge">
+                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100" alt="Avatar" id="header-avatar">
+                    <div class="user-welcome">
+                        <span class="user-welcome-label">Welcome</span>
+                        <strong class="user-welcome-name" id="user-display-name">Akshay Rajput</strong>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="header-icon-btn" id="header-search-btn" title="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
+                    <button class="header-icon-btn" id="header-alert-btn" title="Notifications" style="position:relative;">
+                        <i class="fa-solid fa-bell"></i>
+                        <span class="notification-badge" id="notification-badge" style="display:none; position:absolute; top:-1px; right:-1px; width:7px; height:7px; background-color:#F05C3B; border-radius:50%; border:1px solid #FFFFFF;"></span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Notification Dropdown Panel -->
+            <div class="notification-dropdown" id="notification-dropdown" style="display:none;">
+                <div class="notification-dropdown-header">
+                    <h4>Notifications</h4>
+                    <button id="clear-notifications-btn">Clear all</button>
+                </div>
+                <div id="notifications-list">
+                    <div class="empty-notifications">No notifications yet</div>
+                </div>
+            </div>
+
+            <!-- Screen Viewport -->
+            <div class="screen-viewport">
+                <!-- Tab 1: Home Dashboard -->
+                <div class="app-screen active" id="screen-home">
+                    <!-- Horizontal Date Slider and Calendar Selector -->
+                    <div class="date-picker-row">
+                        <div class="horizontal-date-slider">
+                            <!-- Populated by JS dynamically with nearby dates -->
+                        </div>
+                        <button class="calendar-toggle-btn" id="calendar-toggle-btn" title="Choose date">
+                            <i class="fa-regular fa-calendar-days"></i>
+                        </button>
+                        <input type="date" id="hidden-date-picker" style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;">
+                    </div>
+
+                    <!-- Figma Semi-Circular Gauge Calorie Tracker Card -->
+                    <div class="gauge-card card">
+                        <div class="semi-gauge-container">
+                            <svg class="semi-gauge" width="220" height="150" viewBox="0 0 220 120">
+                                <!-- Background Gray Arc -->
+                                <path class="gauge-bg" d="M20 110 A 90 90 0 0 1 200 110" stroke="#f0f2f5" stroke-width="14" fill="none" stroke-linecap="round"/>
+                                <!-- Active Orange/Coral Progress Arc -->
+                                <path class="gauge-fill" id="gauge-fill-arc" d="M20 110 A 90 90 0 0 1 200 110" stroke="url(#coralGradient)" stroke-width="14" fill="none" stroke-linecap="round"/>
+                                
+                                <defs>
+                                    <linearGradient id="coralGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#ff9b71"/>
+                                        <stop offset="100%" stop-color="#F05C3B"/>
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+
+                            <div class="gauge-center-text">
+                                <div class="gauge-icon"><i class="fa-solid fa-fire text-coral"></i></div>
+                                <span class="gauge-calories" id="gauge-cal-completed">0</span>
+                                <span class="gauge-total">of <span id="gauge-cal-target">2213</span> kcal</span>
+                            </div>
+                        </div>
+
+                        <!-- Gauge Stats Row (Budget, Left, Exercise) -->
+                        <div class="gauge-stats-row" style="display: flex; justify-content: space-around; width: 100%; margin: 8px 0 16px 0; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 10px 0;">
+                            <div style="display: flex; flex-direction: column; align-items: center;">
+                                <span style="font-size: 10px; color: var(--text-muted); font-weight: 500; text-transform: uppercase;">Budget</span>
+                                <strong id="gauge-budget-val" style="font-size: 14px; color: var(--text-dark);">2213</strong>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center; border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color); padding: 0 24px;">
+                                <span style="font-size: 10px; color: var(--text-muted); font-weight: 500; text-transform: uppercase;">Left</span>
+                                <strong id="gauge-left-val" style="font-size: 16px; color: var(--accent-coral);">2213</strong>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center;">
+                                <span style="font-size: 10px; color: var(--text-muted); font-weight: 500; text-transform: uppercase;">Exercise</span>
+                                <strong id="gauge-exercise-val" style="font-size: 14px; color: var(--accent-green);">0</strong>
+                            </div>
+                        </div>
+
+                        <!-- Macro Details Grid -->
+                        <div class="macro-bars-card">
+                            <div class="macro-bar-col">
+                                <div class="macro-col-header">
+                                    <span class="macro-dot bg-purple"></span>
+                                    <span>Protein</span>
+                                </div>
+                                <strong class="macro-col-value"><span id="macro-p-val">0</span>g</strong>
+                                <span class="macro-col-target">of <span id="macro-p-tgt">90</span>g</span>
+                                <div class="macro-bar-track"><div class="macro-bar-fill bg-purple" id="macro-bar-p" style="width: 0%;"></div></div>
+                            </div>
+                            
+                            <div class="macro-bar-col">
+                                <div class="macro-col-header">
+                                    <span class="macro-dot bg-yellow"></span>
+                                    <span>Fats</span>
+                                </div>
+                                <strong class="macro-col-value"><span id="macro-f-val">0</span>g</strong>
+                                <span class="macro-col-target">of <span id="macro-f-tgt">70</span>g</span>
+                                <div class="macro-bar-track"><div class="macro-bar-fill bg-yellow" id="macro-bar-f" style="width: 0%;"></div></div>
+                            </div>
+
+                            <div class="macro-bar-col">
+                                <div class="macro-col-header">
+                                    <span class="macro-dot bg-green"></span>
+                                    <span>Carbs</span>
+                                </div>
+                                <strong class="macro-col-value"><span id="macro-c-val">0</span>g</strong>
+                                <span class="macro-col-target">of <span id="macro-c-tgt">110</span>g</span>
+                                <div class="macro-bar-track"><div class="macro-bar-fill bg-green" id="macro-bar-c" style="width: 0%;"></div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Daily Activity & Logs Card -->
+                    <div class="card activity-card" style="margin-bottom: 16px;">
+                        <h3 style="font-size: 14px; margin-bottom: 12px;"><i class="fa-solid fa-chart-line text-coral"></i> Daily Activity & Logs</h3>
+                        <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                            <button class="btn btn-secondary" id="btn-open-weight-log" style="flex: 1; height: 38px; font-size: 12px; border-radius: 10px; padding: 0 10px; justify-content: center;">
+                                <i class="fa-solid fa-weight-scale" style="color:var(--accent-purple)"></i> Weight Log
+                            </button>
+                            <button class="btn btn-secondary" id="btn-open-exercise-log" style="flex: 1; height: 38px; font-size: 12px; border-radius: 10px; padding: 0 10px; justify-content: center;">
+                                <i class="fa-solid fa-person-running" style="color:var(--accent-green)"></i> Exercise Log
+                            </button>
+                        </div>
+                        <div class="activity-summary-details" style="font-size: 12px; display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+                                <span style="color: var(--text-muted); font-weight: 500;">Weight Today</span>
+                                <strong id="dashboard-current-weight-val">--</strong>
+                            </div>
+                            <div>
+                                <span style="color: var(--text-muted); font-weight: 500; display: block; margin-bottom: 4px;">Today's Workouts</span>
+                                <div id="dashboard-today-workouts-list" style="display: flex; flex-direction: column; gap: 6px;">
+                                    <span style="color: var(--text-light-gray); font-style: italic; font-size: 11px;">No exercise logged today.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Today's Meals Section -->
+                    <div class="meals-section-container">
+                        <div class="meals-section-header">
+                            <h3>Today's Meals</h3>
+                            <button class="text-link-btn" id="view-all-meals-btn">View All</button>
+                        </div>
+
+                        <!-- Meal Category Tabs -->
+                        <div class="meal-categories">
+                            <button class="meal-cat-btn active" data-category="breakfast">Breakfast</button>
+                            <button class="meal-cat-btn" data-category="lunch">Lunch</button>
+                            <button class="meal-cat-btn" data-category="dinner">Dinner</button>
+                        </div>
+
+                        <!-- Meal Cards list container -->
+                        <div class="meal-cards-list" id="meal-cards-list">
+                            <!-- Populated dynamically by JS -->
+                            <div class="empty-state-card">
+                                <i class="fa-solid fa-utensils empty-icon-gray"></i>
+                                <p>No meals logged for this category</p>
+                                <p class="empty-subtext">Click the "+" scanner button below to scan and log this meal.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Search / Manual Entry / Explore -->
+                <div class="app-screen" id="screen-search">
+                    <div class="screen-header">
+                        <h2>Explore Foods</h2>
+                    </div>
+                    
+                    <!-- Sub-tabs for Explore -->
+                    <div class="explore-tabs-container">
+                        <button class="explore-tab-btn active" data-view="manual">Manual Log</button>
+                        <button class="explore-tab-btn" data-view="new-dishes">Explore New Dishes</button>
+                    </div>
+
+                    <!-- View 1: Manual Log -->
+                    <div id="explore-manual-view" class="explore-view active">
+                        <div class="search-box-container">
+                            <i class="fa-solid fa-magnifying-glass search-input-icon"></i>
+                            <input type="text" id="food-search-input" class="form-control search-input" placeholder="Search rice, pho, avocado salad...">
+                        </div>
+
+                        <!-- Custom manual add form card -->
+                        <div class="custom-add-card card" style="margin-top: 16px;">
+                            <h3>Custom Meal Input</h3>
+                            <div class="form-group">
+                                <label>Meal Category</label>
+                                <div class="meal-category-select-pill">
+                                    <button class="pill-btn active" data-cat="breakfast">Breakfast</button>
+                                    <button class="pill-btn" data-cat="lunch">Lunch</button>
+                                    <button class="pill-btn" data-cat="dinner">Dinner</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="custom-food-name">Food Name</label>
+                                <input type="text" id="custom-food-name" class="form-control" placeholder="Pho, eggs, salad...">
+                            </div>
+                            <div class="form-group">
+                                <label for="custom-food-calories">Calories (kcal)</label>
+                                <input type="number" id="custom-food-calories" class="form-control" placeholder="0">
+                            </div>
+                            <div class="macro-grid">
+                                <div class="form-group">
+                                    <label for="custom-food-p">Protein (g)</label>
+                                    <input type="number" id="custom-food-p" class="form-control" placeholder="0">
+                                </div>
+                                <div class="form-group">
+                                    <label for="custom-food-c">Carbs (g)</label>
+                                    <input type="number" id="custom-food-c" class="form-control" placeholder="0">
+                                </div>
+                                <div class="form-group">
+                                    <label for="custom-food-f">Fats (g)</label>
+                                    <input type="number" id="custom-food-f" class="form-control" placeholder="0">
+                                </div>
+                            </div>
+                            <button class="btn btn-green btn-block" id="custom-food-save-btn" style="margin-top: 16px;"><i class="fa-solid fa-plus"></i> Add Meal</button>
+                        </div>
+                    </div>
+
+                    <!-- View 2: Explore New Dishes -->
+                    <div id="explore-new-dishes-view" class="explore-view">
+                        <div class="scraped-dishes-header">
+                            <p class="scraped-subtitle"><i class="fa-solid fa-wand-magic-sparkles text-coral"></i> Live AI Scraped Ideas from Hungry Huy</p>
+                        </div>
+                        <div class="scraped-dishes-list" id="scraped-dishes-list">
+                            <div class="loading-state">
+                                <i class="fa-solid fa-spinner fa-spin text-coral"></i>
+                                <p>Scraping new culinary ideas...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: AI Scanner / Camera Upload (Scan) -->
+                <div class="app-screen" id="screen-scan">
+                    <div class="screen-header">
+                        <h2>AI Scanner</h2>
+                        <span class="badge" id="backend-status-revamp"><span class="status-dot"></span>Checking...</span>
+                    </div>
+
+                    <div class="scan-controls-container">
+                        <!-- Mode selections -->
+                        <div class="mode-selector-light" style="display: none;">
+                            <button class="mode-btn-light active" id="mode-fast-revamp" data-mode="fast">
+                                <i class="fa-solid fa-bolt"></i> Fast Mode
+                            </button>
+                            <button class="mode-btn-light" id="mode-accurate-revamp" data-mode="accurate">
+                                <i class="fa-solid fa-circle-check"></i> Accurate Mode
+                            </button>
+                        </div>
+                        
+                        <!-- Model Dropdown -->
+                        <div class="select-wrapper-light">
+                            <select id="model-select-revamp" class="form-select-light">
+                                <option value="">Default Model</option>
+                            </select>
+                            <i class="fa-solid fa-chevron-down select-icon"></i>
+                        </div>
+                    </div>
+
+                    <!-- Dropzone -->
+                    <div class="upload-dropzone-light" id="dropzone-revamp" style="position: relative;">
+                        <input type="file" id="file-input-revamp" accept="image/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.01; cursor: pointer; z-index: 10;">
+                        <div class="dropzone-content">
+                            <i class="fa-solid fa-camera camera-large-icon"></i>
+                            <h3>Upload food photo</h3>
+                            <p>Drag your food picture or touch to open camera</p>
+                        </div>
+                    </div>
+
+
+
+                    <!-- Progress tracking panel -->
+                    <div class="progress-panel-light" id="progress-panel-revamp" style="display: none;">
+                        <div class="progress-header">
+                            <span class="progress-status-text" id="progress-status-revamp-text">Uploading image...</span>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="progress-percent" id="progress-percent-revamp">0%</span>
+                                <button class="close-btn-light" id="cancel-progress-revamp-btn" style="border: none; background: none; color: #8E8E93; cursor: pointer; padding: 2px; display: flex; align-items: center; justify-content: center;" title="Cancel Scan"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="progress-bar-fill-revamp" style="width: 0%;"></div>
+                        </div>
+                        <ul class="progress-steps-list-light">
+                            <li class="step-item-light active" id="step-u-revamp"><i class="fa-solid fa-circle-notch fa-spin"></i> Uploading Image</li>
+                            <li class="step-item-light" id="step-c-revamp"><i class="fa-regular fa-circle"></i> Running food classification</li>
+                            <li class="step-item-light" id="step-n-revamp"><i class="fa-regular fa-circle"></i> Fetching USDA nutritional profiles</li>
+                            <li class="step-item-light" id="step-s-revamp"><i class="fa-regular fa-circle"></i> Ingredient mask extraction (Accurate)</li>
+                            <li class="step-item-light" id="step-p-revamp"><i class="fa-regular fa-circle"></i> Portion height & volume estimation</li>
+                        </ul>
+                    </div>
+
+                    <!-- Results panel -->
+                    <div class="result-panel-light card" id="result-panel-revamp" style="display: none;">
+                        <div class="result-header-light">
+                            <h3>AI Analysis Details</h3>
+                            <button class="close-btn-light" id="close-result-revamp-btn"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+
+                        <div class="result-body-light">
+                            <div class="result-image-container">
+                                <img id="result-img-revamp" src="" alt="Analyzed meal">
+                                <canvas id="overlay-canvas-revamp"></canvas>
+                                <div class="overlay-tag" id="overlay-tag-revamp" style="display: none;"><i class="fa-solid fa-circle-nodes"></i> Ingredients Mask Active</div>
+                            </div>
+
+                            <div class="food-info-header">
+                                <div>
+                                    <h2 id="result-food-name-revamp">Phở Bò</h2>
+                                    <p class="portion-text" id="result-portion-revamp">Estimated portion: 1.2 portions</p>
+                                </div>
+                                <div class="conf-badge">
+                                    <span id="result-conf-val">95%</span>
+                                    <span class="conf-lbl">Confidence</span>
+                                </div>
+                            </div>
+
+                            <!-- Macro Breakdown -->
+                            <div class="macros-breakdown-card">
+                                <div class="macro-line-item">
+                                    <div class="macro-line-lbl">
+                                        <span><i class="fa-solid fa-fire text-coral"></i> Calories</span>
+                                        <strong id="res-macro-cal">650 kcal</strong>
+                                    </div>
+                                    <div class="macro-line-bar"><div class="macro-line-fill bg-coral" id="res-fill-cal" style="width: 50%;"></div></div>
+                                </div>
+
+                                <div class="macro-line-grid">
+                                    <div class="macro-line-item">
+                                        <div class="macro-line-lbl">
+                                            <span>Protein</span>
+                                            <strong id="res-macro-p">28g</strong>
+                                        </div>
+                                        <div class="macro-line-bar"><div class="macro-line-fill bg-purple" id="res-fill-p" style="width: 50%;"></div></div>
+                                    </div>
+                                    <div class="macro-line-item">
+                                        <div class="macro-line-lbl">
+                                            <span>Carbs</span>
+                                            <strong id="res-macro-c">85g</strong>
+                                        </div>
+                                        <div class="macro-line-bar"><div class="macro-line-fill bg-green" id="res-fill-c" style="width: 50%;"></div></div>
+                                    </div>
+                                    <div class="macro-line-item">
+                                        <div class="macro-line-lbl">
+                                            <span>Fats</span>
+                                            <strong id="res-macro-f">16g</strong>
+                                        </div>
+                                        <div class="macro-line-bar"><div class="macro-line-fill bg-yellow" id="res-fill-f" style="width: 50%;"></div></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Ingredients breakdown -->
+                            <div class="ingredients-list-section" id="res-ing-section" style="display: none;">
+                                <h4>Detected Ingredients</h4>
+                                <div class="ing-list-items" id="res-ing-list">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+
+                            <!-- Depth map -->
+                            <div class="depth-map-section" id="res-depth-section" style="display: none;">
+                                <h4>Depth Map V2 Visualization</h4>
+                                <div class="depth-map-img-wrapper">
+                                    <img id="res-depth-img" src="" alt="Depth map">
+                                </div>
+                            </div>
+
+                            <!-- Quick Select Intake Choice for AI Result -->
+                            <div class="form-group" style="margin-top: 14px;">
+                                <label>Log this meal for:</label>
+                                <div class="meal-category-select-pill" id="result-meal-cat-select">
+                                    <button class="pill-btn active" data-cat="breakfast">Breakfast</button>
+                                    <button class="pill-btn" data-cat="lunch">Lunch</button>
+                                    <button class="pill-btn" data-cat="dinner">Dinner</button>
+                                </div>
+                            </div>
+
+                            <div class="result-footer-actions">
+                                <button class="btn btn-secondary" id="res-cancel-btn">Discard</button>
+                                <button class="btn btn-green" id="res-save-btn"><i class="fa-solid fa-plus"></i> Add to Journey</button>
+                                <button class="btn btn-green" id="res-back-home-btn" style="display: none; width: 100%;"><i class="fa-solid fa-arrow-left"></i> Back to Home</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Reports (Graph) -->
+                <div class="app-screen" id="screen-reports">
+                    <div class="screen-header">
+                        <h2>Diet Progress</h2>
+                    </div>
+
+                    <!-- Weekly progress Line Chart Card -->
+                    <div class="chart-card card">
+                        <div class="chart-header">
+                            <h3>Weekly Calorie Intake</h3>
+                            <span class="chart-avg">Avg: <strong id="reports-avg-val">0</strong> kcal</span>
+                        </div>
+                        <div class="canvas-container">
+                            <canvas id="progress-line-chart" width="350" height="180"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Additional health insights cards -->
+                    <div class="insights-container">
+                        <h3>Nutrition Insights</h3>
+                        <div class="insight-item-light">
+                            <div class="insight-icon bg-light-green"><i class="fa-solid fa-shield-heart text-green"></i></div>
+                            <div class="insight-text">
+                                <h4>Calorie Goal Streak</h4>
+                                <p id="insight-streak-text">You are on track! Stay close to your limit.</p>
+                            </div>
+                        </div>
+                        <div class="insight-item-light">
+                            <div class="insight-icon bg-light-purple"><i class="fa-solid fa-apple-whole text-purple"></i></div>
+                            <div class="insight-text">
+                                <h4>Macronutrient Balance</h4>
+                                <p id="insight-macro-text">Ensure you are hitting your protein goal for today.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 5: Profile & Settings -->
+                <div class="app-screen" id="screen-profile">
+                    <div class="profile-card card">
+                        <div class="profile-avatar-container">
+                            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120" alt="Avatar" id="profile-avatar">
+                        </div>
+                        <h2 class="profile-name" id="profile-display-name">Akshay Rajput</h2>
+                        <span class="profile-username" id="profile-display-username">@rajputakshay8940</span>
+
+                        <!-- User stats tags -->
+                        <div class="profile-stats-row">
+                            <div class="profile-stat-box">
+                                <span class="lbl">Calorie Target</span>
+                                <strong id="prof-stat-cal">2213 kcal</strong>
+                            </div>
+                            <div class="profile-stat-box">
+                                <span class="lbl">Goal</span>
+                                <strong id="prof-stat-goal" style="text-transform: capitalize;">Maintain</strong>
+                            </div>
+                            <div class="profile-stat-box">
+                                <span class="lbl">Weight</span>
+                                <strong id="prof-stat-weight">62 Kg</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Menu List -->
+                    <div class="profile-menu-list">
+                        <div class="profile-menu-item" id="menu-theme-black" style="display: flex; justify-content: space-between; align-items: center; cursor: default;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div class="menu-icon"><i class="fa-solid fa-moon"></i></div>
+                                <span>Pitch-Black Dark Mode</span>
+                            </div>
+                            <label class="switch-toggle" style="position: relative; display: inline-block; width: 44px; height: 24px; margin-right: 4px;">
+                                <input type="checkbox" id="dark-theme-toggle" style="opacity: 0; width: 0; height: 0; cursor: pointer;">
+                                <span class="slider-round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px;"></span>
+                            </label>
+                        </div>
+                        <div class="profile-menu-item" id="menu-intake-goal">
+                            <div class="menu-icon"><i class="fa-solid fa-fire-burner"></i></div>
+                            <span>Daily Intake Target</span>
+                            <i class="fa-solid fa-chevron-right arrow-icon"></i>
+                        </div>
+                        <div class="profile-menu-item" id="menu-favorites">
+                            <div class="menu-icon"><i class="fa-solid fa-heart"></i></div>
+                            <span>Favorites Foods</span>
+                            <i class="fa-solid fa-chevron-right arrow-icon"></i>
+                        </div>
+                        <div class="profile-menu-item" id="menu-survey">
+                            <div class="menu-icon"><i class="fa-solid fa-clipboard-question"></i></div>
+                            <span>Recalculate BMR (Survey)</span>
+                            <i class="fa-solid fa-chevron-right arrow-icon"></i>
+                        </div>
+
+                        <!-- Logout Button -->
+                        <button class="btn btn-coral btn-block" id="logout-btn" style="margin-top: 24px;">
+                            <i class="fa-solid fa-right-from-bracket"></i> Log out
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Navigation Bar -->
+            <nav class="bottom-tab-bar">
+                <button class="tab-nav-btn active" data-screen="home">
+                    <i class="fa-solid fa-house-chimney"></i>
+                    <span>Home</span>
+                </button>
+                <button class="tab-nav-btn" data-screen="search">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <span>Explore</span>
+                </button>
+                
+                <!-- Floating green scan button -->
+                <div class="tab-nav-scan-wrapper">
+                    <button class="scan-nav-btn" data-screen="scan">
+                        <i class="fa-solid fa-camera"></i>
+                    </button>
+                </div>
+                
+                <button class="tab-nav-btn" data-screen="reports">
+                    <i class="fa-solid fa-chart-simple"></i>
+                    <span>Reports</span>
+                </button>
+                <button class="tab-nav-btn" data-screen="profile">
+                    <i class="fa-solid fa-user"></i>
+                    <span>Profile</span>
+                </button>
+            </nav>
+        </div>
+        
+        <!-- Custom Daily Calorie Target Modal (Inside Simulator) -->
+        <div class="modal" id="custom-target-modal">
+            <div class="modal-dialog">
+                <div class="modal-header">
+                    <h3>Custom Target Calories</h3>
+                    <button class="close-btn" id="close-target-modal"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="custom-target-calories-val">Daily Calorie Target (kcal)</label>
+                        <input type="number" id="custom-target-calories-val" class="form-control" value="2213">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancel-target-modal-btn">Cancel</button>
+                    <button class="btn btn-green" id="save-target-modal-btn">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Calendar Modal -->
+        <div class="modal" id="calendar-modal">
+            <div class="modal-dialog">
+                <div class="modal-header" style="margin-bottom: 12px;">
+                    <h3 id="calendar-month-year" style="font-size: 16px; font-weight: 700; color: var(--text-dark);">June 2026</h3>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button class="calendar-nav-btn" id="calendar-prev-month" title="Previous month" style="width:30px; height:30px; border-radius:50%; border:1px solid var(--border-color); background-color:var(--bg-light); display:flex; align-items:center; justify-content:center; cursor:pointer;"><i class="fa-solid fa-chevron-left" style="font-size:10px;"></i></button>
+                        <button class="calendar-nav-btn" id="calendar-next-month" title="Next month" style="width:30px; height:30px; border-radius:50%; border:1px solid var(--border-color); background-color:var(--bg-light); display:flex; align-items:center; justify-content:center; cursor:pointer;"><i class="fa-solid fa-chevron-right" style="font-size:10px;"></i></button>
+                        <button class="close-btn" id="close-calendar-modal" style="width:30px; height:30px; border-radius:50%; border:none; background-color:var(--bg-light); display:flex; align-items:center; justify-content:center; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                </div>
+                <div class="modal-body" style="gap: 12px;">
+                    <div class="calendar-weekdays-grid" style="display:grid; grid-template-columns:repeat(7, 1fr); text-align:center; font-size:11px; font-weight:600; color:var(--text-muted);">
+                        <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+                    </div>
+                    <div class="calendar-days-grid" id="calendar-days-grid" style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px;">
+                        <!-- Populated dynamically by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Success Modal -->
+        <div class="modal" id="success-modal">
+            <div class="modal-dialog" style="text-align: center; padding: 24px;">
+                <div class="modal-body" style="gap: 16px; align-items: center; justify-content: center; display: flex; flex-direction: column;">
+                    <div class="success-icon-circle" style="width: 64px; height: 64px; border-radius: 50%; background-color: rgba(163, 217, 46, 0.15); display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+                        <i class="fa-solid fa-circle-check" style="font-size: 40px; color: var(--accent-green);"></i>
+                    </div>
+                    <h3 style="font-size: 18px; font-weight: 700; color: var(--text-dark); margin: 0;">Thêm món thành công!</h3>
+                    <p id="success-modal-msg" style="font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.5;">Món ăn của bạn đã được lưu lại vào hành trình ăn uống.</p>
+                    <button class="btn btn-green btn-block" id="success-modal-btn" style="margin-top: 8px;">Tuyệt vời</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Error Modal -->
+        <div class="modal" id="error-modal">
+            <div class="modal-dialog">
+                <div class="modal-header">
+                    <h3 style="color: var(--accent-coral);"><i class="fa-solid fa-triangle-exclamation"></i> Analysis Failed</h3>
+                    <button class="close-btn" id="close-error-modal"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body" style="gap: 8px;">
+                    <p style="font-size: 12px; color: var(--text-dark); margin: 0;">An error occurred during food analysis. You can copy the diagnostic details below to report this issue:</p>
+                    <textarea id="error-traceback" class="form-control" readonly style="width: 100%; height: 160px; font-family: monospace; font-size: 11px; margin-top: 8px; resize: none; background-color: var(--bg-light); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; box-sizing: border-box; line-height: 1.4; color: var(--text-dark);"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="copy-error-btn" style="display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fa-solid fa-copy"></i> Copy details</button>
+                    <button class="btn btn-green" id="close-error-modal-btn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Weight Log Modal -->
+        <div class="modal" id="weight-log-modal">
+            <div class="modal-dialog">
+                <div class="modal-header">
+                    <h3>Log Daily Weight</h3>
+                    <button class="close-btn" id="close-weight-modal"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body" style="gap: 12px;">
+                    <div class="form-group">
+                        <label for="weight-log-input">Enter Weight (<span class="weight-unit-label">kg</span>)</label>
+                        <input type="number" step="0.1" id="weight-log-input" class="form-control" placeholder="62.0">
+                    </div>
+                    <div class="weight-history-section" style="margin-top: 15px;">
+                        <h4 style="font-size: 13px; font-weight:600; color:var(--text-dark); margin-bottom: 8px;">Weight History</h4>
+                        <div id="weight-history-list" style="max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancel-weight-modal-btn">Cancel</button>
+                    <button class="btn btn-green" id="save-weight-modal-btn">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Exercise Log Modal -->
+        <div class="modal" id="exercise-log-modal">
+            <div class="modal-dialog">
+                <div class="modal-header">
+                    <h3>Log Activity</h3>
+                    <button class="close-btn" id="close-exercise-modal"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body" style="gap: 12px;">
+                    <div class="form-group">
+                        <label for="exercise-activity-select">Select Activity</label>
+                        <div class="select-wrapper-light" style="position:relative;">
+                            <select id="exercise-activity-select" class="form-select-light" style="width:100%; height:42px; border-radius:12px; border:1px solid #efeef4; padding:0 12px; font-weight:600; font-size:13px; appearance:none;">
+                                <option value="Walking" data-rate="4">Walking (4 kcal/min)</option>
+                                <option value="Running" data-rate="10">Running (10 kcal/min)</option>
+                                <option value="Cycling" data-rate="8">Cycling (8 kcal/min)</option>
+                                <option value="Swimming" data-rate="9">Swimming (9 kcal/min)</option>
+                                <option value="Strength" data-rate="5">Strength Training (5 kcal/min)</option>
+                                <option value="Yoga" data-rate="3">Yoga (3 kcal/min)</option>
+                                <option value="Custom" data-rate="custom">Custom Exercise</option>
+                            </select>
+                            <i class="fa-solid fa-chevron-down select-icon" style="position:absolute; right:12px; top:15px; font-size:10px; color:#8E8E93; pointer-events:none;"></i>
+                        </div>
+                    </div>
+                    <div class="form-group" id="custom-exercise-name-group" style="display: none;">
+                        <label for="custom-exercise-name">Exercise Name</label>
+                        <input type="text" id="custom-exercise-name" class="form-control" placeholder="e.g. Boxing">
+                    </div>
+                    <div class="form-group">
+                        <label for="exercise-duration-input">Duration (minutes)</label>
+                        <input type="number" id="exercise-duration-input" class="form-control" value="30">
+                    </div>
+                    <div class="form-group" id="custom-exercise-calories-group" style="display: none;">
+                        <label for="custom-exercise-calories">Calories Burned (kcal)</label>
+                        <input type="number" id="custom-exercise-calories" class="form-control" placeholder="e.g. 300">
+                    </div>
+                    <div style="font-size: 12px; font-weight:600; color:var(--text-muted); margin-top: 10px;">
+                        Estimated burn: <span id="exercise-estimated-burn" style="color: var(--accent-green);">120</span> kcal
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancel-exercise-modal-btn">Cancel</button>
+                    <button class="btn btn-green" id="save-exercise-modal-btn">Log Activity</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Delete Meal Modal -->
+    <div class="modal" id="delete-meal-modal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Confirm Delete Meal</h3>
+                <button class="close-btn" id="close-delete-meal-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">Are you sure you want to delete this meal item? This action cannot be undone.</p>
+                <input type="hidden" id="delete-meal-id">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-delete-meal-btn">Cancel</button>
+                <button class="btn btn-green btn-danger" id="confirm-delete-meal-btn" style="background-color: var(--accent-coral); border-color: var(--accent-coral);">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Delete Workout Modal -->
+    <div class="modal" id="delete-workout-modal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Confirm Delete Workout</h3>
+                <button class="close-btn" id="close-delete-workout-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">Are you sure you want to delete this workout activity? This action cannot be undone.</p>
+                <input type="hidden" id="delete-workout-id">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-delete-workout-btn">Cancel</button>
+                <button class="btn btn-green btn-danger" id="confirm-delete-workout-btn" style="background-color: var(--accent-coral); border-color: var(--accent-coral);">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Delete Weight Modal -->
+    <div class="modal" id="delete-weight-modal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Confirm Delete Weight</h3>
+                <button class="close-btn" id="close-delete-weight-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">Are you sure you want to delete this weight log? This action cannot be undone.</p>
+                <input type="hidden" id="delete-weight-date">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-delete-weight-btn">Cancel</button>
+                <button class="btn btn-green btn-danger" id="confirm-delete-weight-btn" style="background-color: var(--accent-coral); border-color: var(--accent-coral);">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="index.js?v=1.0.3"></script>
+</body>
+</html>
