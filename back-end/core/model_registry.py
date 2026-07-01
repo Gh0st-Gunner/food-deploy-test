@@ -231,14 +231,17 @@ class ModelRegistry:
 
         from transformers import pipeline as hf_pipeline
 
+        # Run on GPU if CUDA is available, otherwise fallback to CPU
+        device_idx = 0 if torch.cuda.is_available() else -1
         pipeline = hf_pipeline(
             task="depth-estimation",
             model=self._settings.depth_model,
+            device=device_idx,
         )
 
         self._models[cache_key] = pipeline
         self._loaded.add(cache_key)
-        logger.info("Loaded Depth Anything V2 model")
+        logger.info("Loaded Depth Anything V2 model (device: %s)", "cuda" if device_idx >= 0 else "cpu")
         return pipeline
 
     # --- Preloading ---

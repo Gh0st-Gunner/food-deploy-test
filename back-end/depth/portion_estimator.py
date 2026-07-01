@@ -106,8 +106,7 @@ def estimate_portion(
             if dish_mask is not None and food_pixel_count > 0 and depth_map is not None:
                 # Resize depth map to match image/mask dimensions if necessary
                 if depth_map.shape != (img_h, img_w):
-                    depth_map_pil = Image.fromarray(depth_map).resize((img_w, img_h), Image.BILINEAR)
-                    depth_map = np.array(depth_map_pil)
+                    depth_map = cv2.resize(depth_map, (img_w, img_h), interpolation=cv2.INTER_LINEAR)
                 
                 food_depths = depth_map[dish_mask]
                 
