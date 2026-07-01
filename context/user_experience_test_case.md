@@ -45,7 +45,7 @@ Sau khi thực hiện xong kiểm thử, nhấp đúp vào tệp tin **[stop.bat
 | ID | Tính năng kiểm thử | Các bước thực hiện | Kết quả mong đợi |
 | :--- | :--- | :--- | :--- |
 | **TC-09** | Quét ảnh món ăn chế độ Fast | 1. Truy cập tab Scan (biểu tượng camera ở giữa thanh điều hướng).<br>2. Tải lên một hình ảnh đĩa thức ăn (ví dụ: đĩa cơm tấm thịt sườn).<br>3. Chọn chế độ "Fast Mode".<br>4. Ấn "Start Analysis". | API khởi động tác vụ bất đồng bộ. Kết quả trả về tên món ăn nhanh chóng nhờ mô hình ONNX/PyTorch tối ưu phân loại. |
-| **TC-10** | Quét ảnh chế độ Accurate (3D) | 1. Tải lên hình ảnh thức ăn.<br>2. Chọn chế độ "Accurate Mode" và điền đường kính đĩa chuẩn (mặc định 25cm).<br>3. Ấn "Start Analysis" và theo dõi tiến trình chạy của `run_worker.bat`. | Celery worker chạy thành công Grounding DINO, cắt phân vùng SAM 2, dựng bản đồ chiều sâu GPU Depth Anything V2 và ước lượng thể tích đĩa ăn. Kết quả trả về khối lượng (g) chi tiết. |
+| **TC-10** | Quét ảnh chế độ Accurate (3D) | 1. Tải lên hình ảnh thức ăn.<br>2. Chọn chế độ "Accurate Mode" và điền đường kính đĩa chuẩn (mặc định 25cm).<br>3. Ấn "Start Analysis" và theo dõi tiến trình logs của container `worker-detection`. | Celery worker chạy thành công Grounding DINO, cắt phân vùng SAM 2, dựng bản đồ chiều sâu GPU Depth Anything V2 và ước lượng thể tích đĩa ăn. Kết quả trả về khối lượng (g) chi tiết. |
 | **TC-11** | Hiệu chỉnh góc nghiêng (Tilt) | 1. Tải lên ảnh chụp đĩa thức ăn ở góc nghiêng lớn (~45 độ).<br>2. Chạy quét ở chế độ Accurate. | OpenCV khớp thành công Ellipse đĩa ăn. Trục lớn và trục nhỏ khớp tỉ lệ góc nghiêng chính xác, hiệu chỉnh diện tích thức ăn để không bị sai lệch khối lượng thực tế. |
 
 ---
