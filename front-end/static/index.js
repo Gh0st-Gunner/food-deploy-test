@@ -1807,6 +1807,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    let currentExplorePage = 1;
+    let isExploreLoading = false;
+    let hasMoreExplore = true;
+    let exploreIntersectionObserver = null;
+
     function setupExploreTabs() {
         const tabBtns = document.querySelectorAll('.explore-tab-btn');
         const views = document.querySelectorAll('.explore-view');
@@ -1825,9 +1830,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (targetView === 'new-dishes') {
-                    loadExploreDishes();
+                    loadExploreDishes(1);
                 }
             });
+        });
+
+        // Explore filters change event
+        const expVegan = document.getElementById('explore-vegan');
+        const expBroth = document.getElementById('explore-broth');
+        [expVegan, expBroth].forEach(chk => {
+            if (chk) {
+                chk.addEventListener('change', () => {
+                    loadExploreDishes(1);
+                });
+            }
         });
 
         const generateBtn = document.getElementById('planner-generate-btn');
@@ -1847,7 +1863,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const aiToggle = document.getElementById('flavor-ai-toggle');
         if (aiToggle) {
             aiToggle.addEventListener('change', () => {
-                loadExploreDishes();
+                loadExploreDishes(1);
             });
         }
 
@@ -1908,31 +1924,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function loadExploreDishes() {
+    function loadExploreDishes(page = 1) {
         const scrapedList = document.getElementById('scraped-dishes-list');
-        scrapedList.innerHTML = `
-            <div class="loading-state">
-                <i class="fa-solid fa-spinner fa-spin text-coral"></i>
-                <p>Scraping new culinary ideas...</p>
-            </div>
-        `;
+        if (!scrapedList) return;
+
+        currentExplorePage = page;
+        isExploreLoading = true;
+
+        if (page === 1) {
+            scrapedList.innerHTML = `
+                <div class="loading-state">
+                    <i class="fa-solid fa-spinner fa-spin text-coral"></i>
+                    <p>Scraping new culinary ideas...</p>
+                </div>
+            `;
+            hasMoreExplore = true;
+        } else {
+            let moreLoader = document.getElementById('explore-more-loader');
+            if (!moreLoader) {
+                moreLoader = document.createElement('div');
+                moreLoader.id = 'explore-more-loader';
+                moreLoader.className = 'loading-state';
+                moreLoader.style.padding = '12px';
+                moreLoader.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-coral" style="font-size:16px;"></i> <span style="font-size:11px; margin-left:6px; color:#8E8E93;">Loading more dishes...</span>`;
+                scrapedList.appendChild(moreLoader);
+            }
+        }
+
+        const expVegan = document.getElementById('explore-vegan');
+        const expBroth = document.getElementById('explore-broth');
+        const vegan = expVegan && expVegan.checked ? 'true' : 'false';
+        const broth = expBroth && expBroth.checked ? 'true' : 'false';
 
         const aiToggle = document.getElementById('flavor-ai-toggle');
         const isAiEnabled = aiToggle && aiToggle.checked;
 
         if (isAiEnabled && currentUser) {
-            // Collect last 7 days of meals
             const recentMeals = [];
             const oneDayMs = 24 * 60 * 60 * 1000;
             const today = new Date();
-            
             for (let i = 0; i < 7; i++) {
                 const date = new Date(today.getTime() - i * oneDayMs);
                 const yyyy = date.getFullYear();
                 const mm = String(date.getMonth() + 1).padStart(2, '0');
                 const dd = String(date.getDate()).padStart(2, '0');
                 const dateStr = `${yyyy}-${mm}-${dd}`;
-                
                 const mealsKey = `munchin_meals_${currentUser.username}_${dateStr}`;
                 const loggedMeals = JSON.parse(localStorage.getItem(mealsKey) || '[]');
                 loggedMeals.forEach(m => {
@@ -1945,11 +1981,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
             }
-
-            // Collect user profile
             const configKey = `munchin_user_config_${currentUser.username}`;
             const userConfig = JSON.parse(localStorage.getItem(configKey) || '{}');
-            
             const payload = {
                 user_profile: {
                     gender: userConfig.gender || currentUser.gender || 'other',
@@ -1964,70 +1997,92 @@ document.addEventListener('DOMContentLoaded', () => {
                 recent_meals: recentMeals
             };
 
-            fetch('/api/v1/explore/recommend', {
+            fetch(`/api/v1/explore/recommend?vegan=${vegan}&broth=${broth}&page=${page}&limit=10`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             })
             .then(res => {
-                if (!res.ok) throw new Error("Flavor AI failed");
+                if (!res.ok) throw new Error();
                 return res.json();
             })
             .then(dishes => {
-                renderExploreDishes(dishes, 'scraped-dishes-list');
-                pushNotification(`Personalized Flavor AI match successfully calculated!`, 'recipe');
+                const moreLoader = document.getElementById('explore-more-loader');
+                if (moreLoader) moreLoader.remove();
+
+                isExploreLoading = false;
+                if (dishes.length < 10) {
+                    hasMoreExplore = false;
+                }
+
+                renderExploreDishes(dishes, 'scraped-dishes-list', page > 1);
+                if (page === 1) {
+                    pushNotification(`Personalized Flavor AI match successfully calculated!`, 'recipe');
+                }
             })
-            .catch(err => {
-                console.error(err);
-                scrapedList.innerHTML = `
-                    <div class="loading-state">
-                        <i class="fa-solid fa-circle-exclamation text-coral"></i>
-                        <p>Flavor AI recommendation failed. Falling back...</p>
-                        <button class="btn btn-secondary btn-block" id="retry-explore-btn" style="height: 34px; font-size:11px; margin-top:8px;">Try Again</button>
-                    </div>
-                `;
-                const retryBtn = document.getElementById('retry-explore-btn');
-                if (retryBtn) {
-                    retryBtn.addEventListener('click', loadExploreDishes);
+            .catch(() => {
+                isExploreLoading = false;
+                const moreLoader = document.getElementById('explore-more-loader');
+                if (moreLoader) moreLoader.remove();
+                if (page === 1) {
+                    scrapedList.innerHTML = `<div class="loading-state"><p>Flavor AI recommendation failed.</p></div>`;
                 }
             });
             return;
         }
 
-        let url = '/api/v1/explore';
+        let url = `/api/v1/explore?vegan=${vegan}&broth=${broth}&page=${page}&limit=10`;
         if (currentUser) {
             const calories = currentUser.targetCalories || '';
             const protein = (currentUser.macros && currentUser.macros.protein) || '';
             const carbs = (currentUser.macros && currentUser.macros.carbs) || '';
             const fat = (currentUser.macros && currentUser.macros.fats) || '';
-            url += `?calories=${calories}&protein=${protein}&carbs=${carbs}&fat=${fat}`;
+            url += `&calories=${calories}&protein=${protein}&carbs=${carbs}&fat=${fat}`;
         }
 
         fetch(url)
             .then(res => {
-                if (!res.ok) throw new Error("Scraper failed");
+                if (!res.ok) throw new Error();
                 return res.json();
             })
             .then(dishes => {
-                renderExploreDishes(dishes);
-                pushNotification(`Discovered ${dishes.length} fresh healthy recipe ideas!`, 'recipe');
+                const moreLoader = document.getElementById('explore-more-loader');
+                if (moreLoader) moreLoader.remove();
+
+                isExploreLoading = false;
+                if (dishes.length < 10) {
+                    hasMoreExplore = false;
+                }
+
+                renderExploreDishes(dishes, 'scraped-dishes-list', page > 1);
+                if (page === 1) {
+                    pushNotification(`Discovered ${dishes.length} fresh healthy recipe ideas!`, 'recipe');
+                }
             })
             .catch(err => {
-                console.error(err);
-                scrapedList.innerHTML = `
-                    <div class="loading-state">
-                        <i class="fa-solid fa-circle-exclamation text-coral"></i>
-                        <p>Failed to retrieve new dishes. Make sure the API server is running.</p>
-                        <button class="btn btn-secondary btn-block" id="retry-explore-btn" style="height: 34px; font-size:11px; margin-top:8px;">Try Again</button>
-                    </div>
-                `;
-                const retryBtn = document.getElementById('retry-explore-btn');
-                if (retryBtn) {
-                    retryBtn.addEventListener('click', loadExploreDishes);
+                isExploreLoading = false;
+                const moreLoader = document.getElementById('explore-more-loader');
+                if (moreLoader) moreLoader.remove();
+
+                if (page === 1) {
+                    scrapedList.innerHTML = `
+                        <div class="loading-state">
+                            <i class="fa-solid fa-circle-exclamation text-coral"></i>
+                            <p>Failed to retrieve new dishes.</p>
+                            <button class="btn btn-secondary btn-block" id="retry-explore-btn" style="height: 34px; font-size:11px; margin-top:8px;">Try Again</button>
+                        </div>
+                    `;
+                    const retryBtn = document.getElementById('retry-explore-btn');
+                    if (retryBtn) {
+                        retryBtn.addEventListener('click', () => loadExploreDishes(1));
+                    }
                 }
             });
+    }
+
+    function loadMoreExploreDishes() {
+        currentExplorePage++;
+        loadExploreDishes(currentExplorePage);
     }
 
     function generateMealRecipes() {
@@ -2046,7 +2101,12 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
-        let url = `/api/v1/explore/generate?ingredients=${encodeURIComponent(ingredients)}`;
+        const plannerVegan = document.getElementById('planner-vegan');
+        const plannerBroth = document.getElementById('planner-broth');
+        const vegan = plannerVegan && plannerVegan.checked ? 'true' : 'false';
+        const broth = plannerBroth && plannerBroth.checked ? 'true' : 'false';
+
+        let url = `/api/v1/explore/generate?ingredients=${encodeURIComponent(ingredients)}&vegan=${vegan}&broth=${broth}`;
         if (currentUser) {
             const calories = currentUser.targetCalories || '';
             const protein = (currentUser.macros && currentUser.macros.protein) || '';
@@ -2075,12 +2135,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    function renderExploreDishes(dishes, containerId = 'scraped-dishes-list') {
+    function renderExploreDishes(dishes, containerId = 'scraped-dishes-list', append = false) {
         const scrapedList = document.getElementById(containerId);
         if (!scrapedList) return;
-        scrapedList.innerHTML = '';
 
-        if (!dishes || dishes.length === 0) {
+        if (!append) {
+            scrapedList.innerHTML = '';
+        }
+
+        if ((!dishes || dishes.length === 0) && !append) {
             scrapedList.innerHTML = `
                 <div class="loading-state">
                     <p>No new dishes found.</p>
@@ -2093,9 +2156,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'scraped-dish-card';
             
-            // Check if match score or rationale exists (Flavor AI)
             const matchBadge = '';
-
             const rationaleHtml = dish.rationale ? `
                 <div class="scraped-ai-rationale" style="background: rgba(240, 92, 59, 0.05); border-left: 3px solid var(--accent-coral); padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 10.5px; color: var(--text-muted); line-height: 1.45; font-family: inherit; display: flex; align-items: flex-start; gap: 6px;">
                     <i class="fa-solid fa-sparkles" style="color: var(--accent-coral); margin-top: 2px;"></i> <span>${dish.rationale}</span>
@@ -2163,7 +2224,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-            // Toggle recipe section action
             const toggleBtn = card.querySelector('.scraped-readmore-btn');
             const expandSection = card.querySelector('.recipe-expand-section');
             if (toggleBtn && expandSection) {
@@ -2180,18 +2240,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // Log meal action
             card.querySelector('.log-scraped-dish-btn').addEventListener('click', () => {
                 const categorySelect = card.querySelector('.scraped-meal-cat-select');
                 const selectedCat = categorySelect.value;
                 addMealItem(dish.title, dish.calories, dish.protein, dish.carbs, dish.fat, selectedCat);
             });
 
-            // Convert category select to custom select dropdown
             convertSelectToCustom(card.querySelector('.scraped-meal-cat-select'));
-
             scrapedList.appendChild(card);
         });
+
+        if (containerId === 'scraped-dishes-list') {
+            if (exploreIntersectionObserver) {
+                exploreIntersectionObserver.disconnect();
+            }
+
+            if (hasMoreExplore && dishes.length > 0) {
+                exploreIntersectionObserver = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting && !isExploreLoading) {
+                            exploreIntersectionObserver.unobserve(entry.target);
+                            loadMoreExploreDishes();
+                        }
+                    });
+                }, { threshold: 0.1 });
+
+                const cards = scrapedList.querySelectorAll('.scraped-dish-card');
+                if (cards.length >= 5) {
+                    exploreIntersectionObserver.observe(cards[cards.length - 5]);
+                }
+            }
+        }
     }
 
     // ----------------------------------

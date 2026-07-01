@@ -470,6 +470,14 @@
                     <div id="explore-new-dishes-view" class="explore-view">
                         <div class="scraped-dishes-header">
                             <p class="scraped-subtitle"><i class="fa-solid fa-wand-magic-sparkles text-coral"></i> Live AI Scraped Ideas from Multi-Sources</p>
+                            <div style="display: flex; gap: 15px; margin: 10px 0 0 0; padding: 0 4px; flex-wrap: wrap;">
+                                <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; cursor: pointer; color: var(--text-main); font-weight: 500;">
+                                    <input type="checkbox" id="explore-vegan" style="accent-color: var(--accent-green); width: 14px; height: 14px;"> 🥗 Vegan / Chay
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; cursor: pointer; color: var(--text-main); font-weight: 500;">
+                                    <input type="checkbox" id="explore-broth" style="accent-color: var(--accent-coral); width: 14px; height: 14px;"> 🍜 Có nước dùng (Soup)
+                                </label>
+                            </div>
                         </div>
 
                         <div class="scraped-dishes-list" id="scraped-dishes-list">
@@ -489,6 +497,14 @@
                             <div class="form-group" style="margin-bottom: 12px;">
                                 <label for="planner-ingredients" style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px; color: var(--text-main);">Available Ingredients (comma-separated)</label>
                                 <input type="text" id="planner-ingredients" class="form-control" placeholder="e.g. chicken, ginger, mushroom" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main); font-size: 13px;">
+                            </div>
+                            <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
+                                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text-main); font-weight: 500;">
+                                    <input type="checkbox" id="planner-vegan" style="accent-color: var(--accent-green); width: 15px; height: 15px;"> 🥗 Vegan / Chay
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text-main); font-weight: 500;">
+                                    <input type="checkbox" id="planner-broth" style="accent-color: var(--accent-coral); width: 15px; height: 15px;"> 🍜 Có nước dùng (Soup)
+                                </label>
                             </div>
                             <button class="btn btn-green btn-block" id="planner-generate-btn" style="width: 100%; padding: 10px; font-size: 13px; font-weight: 600;"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate Recipes</button>
                         </div>

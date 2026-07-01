@@ -251,17 +251,29 @@ def parse_recipe_from_text(content: str) -> Dict:
     except Exception:
         pass
 
-    # Image mapping
+    # Rich image mapping based on content keywords
     img_mapped = default_img
     lower_content = content.lower()
-    if 'chicken' in lower_content or 'ga' in lower_content:
+    if 'pho' in lower_content or 'phở' in lower_content:
+        img_mapped = "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?auto=format&fit=crop&q=80&w=400"
+    elif 'bread' in lower_content or 'bánh mì' in lower_content:
+        img_mapped = "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=400"
+    elif 'chicken' in lower_content or 'gà' in lower_content:
         img_mapped = "https://images.unsplash.com/photo-1598515214211-89d3e73ae83b?auto=format&fit=crop&q=80&w=400"
-    elif 'pork' in lower_content or 'thịt nướng' in lower_content:
+    elif 'pork' in lower_content or 'heo' in lower_content or 'thịt nướng' in lower_content:
         img_mapped = "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&q=80&w=400"
     elif 'roll' in lower_content or 'cuốn' in lower_content:
         img_mapped = "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&q=80&w=400"
-    elif 'shrimp' in lower_content or 'tom' in lower_content:
+    elif 'shrimp' in lower_content or 'tom' in lower_content or 'tôm' in lower_content:
         img_mapped = "https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&q=80&w=400"
+    elif 'fish' in lower_content or 'cá' in lower_content:
+        img_mapped = "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&q=80&w=400"
+    elif 'soup' in lower_content or 'canh' in lower_content or 'broth' in lower_content:
+        img_mapped = "https://images.unsplash.com/photo-1547592165-e1d17fed6005?auto=format&fit=crop&q=80&w=400"
+    elif 'rice' in lower_content or 'cơm' in lower_content or 'xôi' in lower_content:
+        img_mapped = "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&q=80&w=400"
+    elif 'salad' in lower_content or 'gỏi' in lower_content or 'nộm' in lower_content:
+        img_mapped = "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&q=80&w=400"
 
     return {
         "image_url": img_mapped,
@@ -278,7 +290,9 @@ def scrape_ollama_search_feed(
     protein: int = None,
     carbs: int = None,
     fat: int = None,
-    ingredients: str = None
+    ingredients: str = None,
+    vegan: bool = False,
+    broth: bool = False
 ) -> List[Dict]:
     from core.settings import get_settings
     settings = get_settings()
@@ -290,9 +304,15 @@ def scrape_ollama_search_feed(
         "Content-Type": "application/json"
     }
 
-    # Dynamically build query fit for the input BMR goals and available ingredients
+    # Dynamically build query fit for BMR, vegan, broth and ingredients
+    query_prefix = "healthy "
+    if vegan:
+        query_prefix += "vegan vegetarian "
+    if broth:
+        query_prefix += "soup broth "
+
     if ingredients:
-        query = f"healthy Vietnamese recipes using {ingredients} from sites like cookpad.com, dienmayxanh.com, hungryhuy.com, runawayrice.com, vickypham.com"
+        query = f"{query_prefix}Vietnamese recipes using {ingredients} from sites like cookpad.com, dienmayxanh.com, hungryhuy.com, runawayrice.com, vickypham.com"
         if calories or protein or carbs or fat:
             parts = []
             if calories:
@@ -315,13 +335,13 @@ def scrape_ollama_search_feed(
             parts.append(f"around {carbs}g carbs")
         if fat:
             parts.append(f"around {fat}g fat")
-        query = f"healthy Vietnamese recipes with {', '.join(parts)} from cookpad.com, dienmayxanh.com, hungryhuy.com, runawayrice.com, vickypham.com with ingredients instructions"
+        query = f"{query_prefix}Vietnamese recipes with {', '.join(parts)} from cookpad.com, dienmayxanh.com, hungryhuy.com, runawayrice.com, vickypham.com with ingredients instructions"
     else:
-        query = "healthy Vietnamese recipes from cookpad.com, dienmayxanh.com, hungryhuy.com, runawayrice.com, vickypham.com with calories protein carbs fat ingredients instructions"
+        query = f"{query_prefix}Vietnamese recipes from cookpad.com, dienmayxanh.com, hungryhuy.com, runawayrice.com, vickypham.com with calories protein carbs fat ingredients instructions"
 
     data = {
         "query": query,
-        "max_results": 10
+        "max_results": 30  # Fetch up to 30 items for pagination / infinite scroll
     }
     
     try:
@@ -336,7 +356,6 @@ def scrape_ollama_search_feed(
             link = item.get("url", "")
             content = item.get("content", "")
             
-            # Create a clean description
             desc_clean = content.split('\n')[0]
             if len(desc_clean) > 130:
                 desc_clean = desc_clean[:127] + "..."
@@ -356,95 +375,156 @@ def get_explore_dishes(
     calories: int = None,
     protein: int = None,
     carbs: int = None,
-    fat: int = None
+    fat: int = None,
+    vegan: bool = False,
+    broth: bool = False,
+    page: int = 1,
+    limit: int = 10
 ) -> List[Dict]:
-    """Retrieves and returns explore dishes list with in-memory TTL caching based on macro goals."""
-    global EXPLORE_CACHES
+    """Retrieves explore dishes list with Redis caching and pagination support."""
+    from api.dependencies import get_redis
+    redis_client = get_redis()
     
-    cache_key = f"{calories or ''}-{protein or ''}-{carbs or ''}-{fat or ''}"
+    cache_key = f"explore:cache:{calories or ''}:{protein or ''}:{carbs or ''}:{fat or ''}:{int(vegan)}:{int(broth)}"
     current_time = time.time()
     
-    if cache_key in EXPLORE_CACHES:
-        cache = EXPLORE_CACHES[cache_key]
-        if cache["items"] and (current_time - cache["timestamp"] < CACHE_TTL):
-            return cache["items"]
-        
+    # 1. Try fetching from Redis cache
+    cached_data = None
+    try:
+        cached_data = redis_client.get(cache_key)
+    except Exception as e:
+        print(f"Redis get failed in get_explore_dishes: {e}")
+
+    if cached_data:
+        try:
+            scraped_dishes = json.loads(cached_data)
+            start = (page - 1) * limit
+            end = page * limit
+            return scraped_dishes[start:end]
+        except Exception as e:
+            print(f"Failed to parse cached explore data: {e}")
+
+    # 2. Cache miss -> Scrape fresh explore dishes
     print(f"Scraping fresh explore dishes using Ollama Web Search API for {cache_key}...")
     feed_items = scrape_ollama_search_feed(
         calories=calories,
         protein=protein,
         carbs=carbs,
-        fat=fat
+        fat=fat,
+        vegan=vegan,
+        broth=broth
     )
     
     if not feed_items:
         print("Ollama Web Search API failed. Returning default seeded recipes.")
-        return DEFAULT_DISHES
-        
-    scraped_dishes = []
-    for item in feed_items:
-        details = parse_recipe_from_text(item["content"])
-        scraped_dishes.append({
-            "title": item["title"],
-            "link": item["link"],
-            "description": item["description"],
-            **details
-        })
-        
-    # If the list is empty, default it
-    if not scraped_dishes:
         scraped_dishes = DEFAULT_DISHES
-        
-    EXPLORE_CACHES[cache_key] = {
-        "timestamp": current_time,
-        "items": scraped_dishes
-    }
-    return scraped_dishes
+    else:
+        scraped_dishes = []
+        for item in feed_items:
+            details = parse_recipe_from_text(item["content"])
+            scraped_dishes.append({
+                "title": item["title"],
+                "link": item["link"],
+                "description": item["description"],
+                **details
+            })
+            
+        if not scraped_dishes:
+            scraped_dishes = DEFAULT_DISHES
 
-def generate_fallback_recipe(ingredients: str, calories: int = None, protein: int = None, carbs: int = None, fat: int = None) -> List[Dict]:
-    """Generates a mock recipe based on the input ingredients when Ollama Search is offline."""
+    # 3. Store the full list in Redis with a 1-hour TTL (3600 seconds)
+    try:
+        redis_client.setex(cache_key, 3600, json.dumps(scraped_dishes))
+    except Exception as e:
+        print(f"Redis setex failed in get_explore_dishes: {e}")
+
+    # Return sliced page list
+    start = (page - 1) * limit
+    end = page * limit
+    return scraped_dishes[start:end]
+
+def generate_fallback_recipe(
+    ingredients: str,
+    calories: int = None,
+    protein: int = None,
+    carbs: int = None,
+    fat: int = None,
+    vegan: bool = False,
+    broth: bool = False
+) -> List[Dict]:
+    """Generates a mock recipe based on the input ingredients and constraints when Ollama Search is offline."""
     import re
-    # Clean and split ingredients
     ing_list = [i.strip() for i in re.split(r'[,\s]+', ingredients) if i.strip()]
     if not ing_list:
-        ing_list = ["healthy vegetables"]
+        ing_list = ["healthy vegetables" if not vegan else "fresh tofu"]
+
+    # Adjust ingredients for vegan option
+    clean_ings = []
+    for ing in ing_list:
+        if vegan and ing in ["chicken", "pork", "beef", "shrimp", "fish", "meat"]:
+            clean_ings.append("tofu")
+        else:
+            clean_ings.append(ing)
+    ing_list = list(set(clean_ings))
+
+    if broth:
+        title = f"Vietnamese Noodle Soup with " + " and ".join([i.capitalize() for i in ing_list[:2]])
+    else:
+        title = f"Vietnamese Stir-Fry with " + " and ".join([i.capitalize() for i in ing_list[:2]])
         
-    title = f"Vietnamese Stir-Fry with " + " and ".join([i.capitalize() for i in ing_list[:2]])
     if len(ing_list) > 2:
         title += " & Herbs"
         
-    # Estimate reasonable macros based on target calories
     cal_target = calories or 400
     p_target = protein or int((cal_target * 0.25) / 4)
     c_target = carbs or int((cal_target * 0.45) / 4)
     f_target = fat or int((cal_target * 0.30) / 9)
     
-    # Construct ingredients list
-    recipe_ingredients = [f"200g of fresh {ing}" for ing in ing_list]
-    recipe_ingredients.extend([
-        "2 cloves garlic, minced",
-        "1 tablespoon vegetable oil",
-        "1.5 tablespoons premium Vietnamese fish sauce (nước mắm)",
-        "1 teaspoon sugar",
-        "Fresh cilantro and chopped green onions for garnish"
-    ])
+    recipe_ingredients = [f"150g of fresh {ing}" for ing in ing_list]
     
-    # Construct instructions
-    recipe_instructions = [
-        "Wash and prep all ingredients, slicing them into bite-sized pieces.",
-        "Heat the vegetable oil in a pan or wok over medium-high heat.",
-        "Add the minced garlic and sauté for 1 minute until fragrant.",
-        f"Add the {', '.join(ing_list)} and stir-fry for 5-7 minutes until tender.",
-        "Drizzle the fish sauce and sprinkle sugar over the ingredients, tossing to coat evenly.",
-        "Garnish with fresh cilantro and chopped green onions. Serve hot."
-    ]
+    # Flavorings based on vegan status
+    sauce_opt = "1.5 tablespoons soy sauce (tương đậu nành) or vegan fish sauce" if vegan else "1.5 tablespoons premium fish sauce (nước mắm)"
     
-    # Return structured recipe
+    if broth:
+        recipe_ingredients.extend([
+            "150g rice noodles (bánh phở) or glass noodles",
+            "400ml vegetable broth (nước dùng chay)" if vegan else "400ml beef/chicken broth (nước dùng)",
+            "1 slice fresh ginger, charred",
+            sauce_opt,
+            "Fresh Thai basil, cilantro, and lime wedge for garnish"
+        ])
+        recipe_instructions = [
+            "Boil the noodles for 3-5 minutes, drain, rinse with cold water and place in a bowl.",
+            "In a separate pot, simmer the broth with the ginger for 10 minutes.",
+            f"Add {', '.join(ing_list)} to the simmering broth and cook for 3-5 minutes until tender.",
+            f"Season the broth with {sauce_opt.split(' ')[2]} to taste.",
+            "Pour the piping hot broth and ingredients over the bowl of noodles.",
+            "Garnish with fresh herbs and squeeze a fresh lime wedge over the bowl."
+        ]
+        image_url = "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?auto=format&fit=crop&q=80&w=400"
+    else:
+        recipe_ingredients.extend([
+            "2 cloves garlic, minced",
+            "1 tablespoon vegetable oil",
+            sauce_opt,
+            "1 teaspoon sugar",
+            "Fresh cilantro and chopped green onions for garnish"
+        ])
+        recipe_instructions = [
+            "Wash and prep all ingredients, slicing them into bite-sized pieces.",
+            "Heat the vegetable oil in a pan or wok over medium-high heat.",
+            "Add the minced garlic and sauté for 1 minute until fragrant.",
+            f"Add the {', '.join(ing_list)} and stir-fry for 5-7 minutes until tender.",
+            f"Drizzle the {sauce_opt.split(' ')[2]} and sprinkle sugar over the ingredients, tossing to coat evenly.",
+            "Garnish with fresh cilantro and chopped green onions. Serve hot."
+        ]
+        image_url = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400"
+        
     return [{
         "title": title,
-        "link": "https://healthyvietnameserecipes.com/custom-stir-fry",
-        "description": f"A quick, healthy Vietnamese style stir-fry featuring fresh {', '.join(ing_list)}. High in nutrition and tailored to your macro goals.",
-        "image_url": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400",
+        "link": "https://healthyvietnameserecipes.com/custom-cooking",
+        "description": f"A healthy Vietnamese style {'noodle soup' if broth else 'stir-fry'} featuring fresh {', '.join(ing_list)}. High in nutrition and tailored to your macros.",
+        "image_url": image_url,
         "calories": cal_target,
         "protein": p_target,
         "carbs": c_target,
@@ -458,16 +538,20 @@ def generate_recipes_from_ingredients(
     calories: int = None,
     protein: int = None,
     carbs: int = None,
-    fat: int = None
+    fat: int = None,
+    vegan: bool = False,
+    broth: bool = False
 ) -> List[Dict]:
-    """Scrapes recipes containing the given ingredients and fitting optional target macros."""
-    print(f"Scraping recipes for ingredients: {ingredients}...")
+    """Scrapes recipes containing the given ingredients and fitting optional target macros & constraints."""
+    print(f"Scraping recipes for ingredients: {ingredients} (vegan: {vegan}, broth: {broth})...")
     feed_items = scrape_ollama_search_feed(
         calories=calories,
         protein=protein,
         carbs=carbs,
         fat=fat,
-        ingredients=ingredients
+        ingredients=ingredients,
+        vegan=vegan,
+        broth=broth
     )
     
     scraped_dishes = []
@@ -481,9 +565,8 @@ def generate_recipes_from_ingredients(
                 **details
             })
             
-    # Fallback to local generator if Ollama Search is offline or returned empty list
     if not scraped_dishes:
         print("Ollama Web Search API failed or returned empty results. Returning dynamic backup recipe.")
-        scraped_dishes = generate_fallback_recipe(ingredients, calories, protein, carbs, fat)
+        scraped_dishes = generate_fallback_recipe(ingredients, calories, protein, carbs, fat, vegan, broth)
         
     return scraped_dishes

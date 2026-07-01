@@ -284,7 +284,11 @@ async def explore(
     calories: Optional[int] = None,
     protein: Optional[int] = None,
     carbs: Optional[int] = None,
-    fat: Optional[int] = None
+    fat: Optional[int] = None,
+    vegan: bool = False,
+    broth: bool = False,
+    page: int = 1,
+    limit: int = 10
 ):
     """Retrieve scraped healthy food options for exploring new dishes."""
     from api.explore_scraper import get_explore_dishes
@@ -292,7 +296,11 @@ async def explore(
         calories=calories,
         protein=protein,
         carbs=carbs,
-        fat=fat
+        fat=fat,
+        vegan=vegan,
+        broth=broth,
+        page=page,
+        limit=limit
     )
 
 
@@ -302,7 +310,9 @@ async def explore_generate(
     calories: Optional[int] = None,
     protein: Optional[int] = None,
     carbs: Optional[int] = None,
-    fat: Optional[int] = None
+    fat: Optional[int] = None,
+    vegan: bool = False,
+    broth: bool = False
 ):
     """Generate healthy recipes based on provided ingredients and target macros."""
     from api.explore_scraper import generate_recipes_from_ingredients
@@ -311,13 +321,21 @@ async def explore_generate(
         calories=calories,
         protein=protein,
         carbs=carbs,
-        fat=fat
+        fat=fat,
+        vegan=vegan,
+        broth=broth
     )
 
 
 @router.post("/explore/recommend")
-async def explore_recommend(request: RecommendRequest):
-    """Rank and filter explore dishes using personalized Flavor AI recommendation engine."""
+async def explore_recommend(
+    request: RecommendRequest,
+    vegan: bool = False,
+    broth: bool = False,
+    page: int = 1,
+    limit: int = 10
+):
+    """Rank and filter explore dishes using personalized Flavor AI recommendation engine with pagination."""
     from api.explore_scraper import get_explore_dishes
     from api.recommendation_engine import recommend_dishes
     
@@ -328,7 +346,10 @@ async def explore_recommend(request: RecommendRequest):
         calories=profile_dict.get("target_calories"),
         protein=profile_dict.get("target_protein"),
         carbs=profile_dict.get("target_carbs"),
-        fat=profile_dict.get("target_fat")
+        fat=profile_dict.get("target_fat"),
+        vegan=vegan,
+        broth=broth,
+        limit=30  # Fetch up to 30 candidates for ranking
     )
     
     ranked_dishes = recommend_dishes(
@@ -336,7 +357,11 @@ async def explore_recommend(request: RecommendRequest):
         recent_meals=recent_meals_dicts,
         candidate_dishes=candidates
     )
-    return ranked_dishes
+    
+    # Slice the ranked results for pagination
+    start = (page - 1) * limit
+    end = page * limit
+    return ranked_dishes[start:end]
 
 
 @router.websocket("/jobs/{job_id}/stream")
