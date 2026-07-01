@@ -2597,10 +2597,33 @@ document.addEventListener('DOMContentLoaded', () => {
         progressPanelRevamp.style.display = 'none';
         resultPanelRevamp.style.display = 'block';
 
-        resultImgRevamp.src = result.image_src;
+        resultImgRevamp.src = (isAccurate && result.overlay_url) ? result.overlay_url : result.image_src;
         resultFoodNameRevamp.textContent = result.name;
         resultPortionRevamp.innerHTML = `<i class="fa-solid fa-calculator text-coral"></i> Estimated portion: <strong>${result.portion}</strong>`;
         resultConfVal.textContent = `${result.confidence}%`;
+
+        // Interactive toggle on image click
+        if (isAccurate && result.overlay_url) {
+            resultImgRevamp.style.cursor = 'pointer';
+            resultImgRevamp.title = 'Click to toggle original image / AI segmentations';
+            resultImgRevamp.onclick = () => {
+                if (resultImgRevamp.src === result.overlay_url) {
+                    resultImgRevamp.src = result.image_src;
+                    overlayTagRevamp.style.opacity = '0.5';
+                    overlayTagRevamp.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+                    overlayTagRevamp.innerHTML = `<i class="fa-solid fa-eye-slash"></i> Ingredients Mask Hidden`;
+                } else {
+                    resultImgRevamp.src = result.overlay_url;
+                    overlayTagRevamp.style.opacity = '1.0';
+                    overlayTagRevamp.style.backgroundColor = 'var(--coral)';
+                    overlayTagRevamp.innerHTML = `<i class="fa-solid fa-circle-nodes"></i> Ingredients Mask Active`;
+                }
+            };
+        } else {
+            resultImgRevamp.style.cursor = 'default';
+            resultImgRevamp.title = '';
+            resultImgRevamp.onclick = null;
+        }
 
         // Bounding canvas overlays
         drawOverlayCanvas(result.name, isAccurate);
@@ -2685,43 +2708,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawOverlayCanvas(foodName, isAccurate) {
         const ctx = overlayCanvasRevamp.getContext('2d');
         ctx.clearRect(0, 0, overlayCanvasRevamp.width, overlayCanvasRevamp.height);
-
-        if (!isAccurate) return;
-
-        overlayCanvasRevamp.width = overlayCanvasRevamp.offsetWidth;
-        overlayCanvasRevamp.height = overlayCanvasRevamp.offsetHeight;
-
-        const w = overlayCanvasRevamp.width;
-        const h = overlayCanvasRevamp.height;
-
-        ctx.lineWidth = 2.5;
-
-        if (foodName.includes('Phở') || foodName.includes('Pho')) {
-            // Broth segment overlay
-            ctx.strokeStyle = '#B6A6E8';
-            ctx.fillStyle = 'rgba(182, 166, 232, 0.15)';
-            ctx.beginPath();
-            ctx.arc(w/2, h/2 + 5, w/3.2, 0, 2*Math.PI);
-            ctx.fill();
-            ctx.stroke();
-
-            // Beef segment overlay
-            ctx.strokeStyle = '#F05C3B';
-            ctx.fillStyle = 'rgba(240, 92, 59, 0.2)';
-            ctx.beginPath();
-            ctx.arc(w/2 + 25, h/2 - 15, 20, 0, 2*Math.PI);
-            ctx.arc(w/2 + 5, h/2 - 20, 18, 0, 2*Math.PI);
-            ctx.fill();
-            ctx.stroke();
-        } else {
-            // Baguette crust
-            ctx.strokeStyle = '#F5C542';
-            ctx.fillStyle = 'rgba(245, 197, 66, 0.15)';
-            ctx.beginPath();
-            ctx.ellipse(w/2, h/2, w/2.9, h/5.2, -Math.PI/12, 0, 2*Math.PI);
-            ctx.fill();
-            ctx.stroke();
-        }
     }
 
     function resetScanDropzone() {
