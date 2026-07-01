@@ -292,7 +292,7 @@ def scrape_ollama_search_feed(
 
     # Dynamically build query fit for the input BMR goals and available ingredients
     if ingredients:
-        query = f"healthy Vietnamese recipes using {ingredients}"
+        query = f"healthy Vietnamese recipes using {ingredients} from sites like cookpad.com, dienmayxanh.com, hungryhuy.com, runawayrice.com, vickypham.com"
         if calories or protein or carbs or fat:
             parts = []
             if calories:
@@ -315,13 +315,13 @@ def scrape_ollama_search_feed(
             parts.append(f"around {carbs}g carbs")
         if fat:
             parts.append(f"around {fat}g fat")
-        query = f"healthy Vietnamese recipes with {', '.join(parts)} with ingredients instructions"
+        query = f"healthy Vietnamese recipes with {', '.join(parts)} from cookpad.com, dienmayxanh.com, hungryhuy.com, runawayrice.com, vickypham.com with ingredients instructions"
     else:
-        query = "healthy Vietnamese recipes with calories protein carbs fat ingredients instructions"
+        query = "healthy Vietnamese recipes from cookpad.com, dienmayxanh.com, hungryhuy.com, runawayrice.com, vickypham.com with calories protein carbs fat ingredients instructions"
 
     data = {
         "query": query,
-        "max_results": 5
+        "max_results": 10
     }
     
     try:

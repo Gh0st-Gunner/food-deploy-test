@@ -2094,11 +2094,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'scraped-dish-card';
             
             // Check if match score or rationale exists (Flavor AI)
-            const matchBadge = dish.match_score !== undefined ? `
-                <div class="scraped-ai-badge" style="position: absolute; top: 12px; left: 12px; background: rgba(163, 217, 46, 0.95); color: #000; padding: 4px 8px; border-radius: 8px; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); font-family: inherit; z-index: 2;">
-                    <i class="fa-solid fa-brain"></i> ${dish.match_score}% Match
-                </div>
-            ` : '';
+            const matchBadge = '';
 
             const rationaleHtml = dish.rationale ? `
                 <div class="scraped-ai-rationale" style="background: rgba(240, 92, 59, 0.05); border-left: 3px solid var(--accent-coral); padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 10.5px; color: var(--text-muted); line-height: 1.45; font-family: inherit; display: flex; align-items: flex-start; gap: 6px;">
