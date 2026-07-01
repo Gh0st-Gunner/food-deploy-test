@@ -129,6 +129,13 @@ services:
       VNFOOD_S3_SECRET_KEY: minioadmin
       VNFOOD_S3_BUCKET: vn-food-images
       VNFOOD_WORKER_PRELOAD_MODELS: dino,sam2,depth
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       redis:
         condition: service_healthy
