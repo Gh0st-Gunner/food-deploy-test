@@ -19,6 +19,9 @@ from core.storage import upload_image, get_presigned_url, download_bytes
 from core.model_registry import ModelRegistry
 from core.settings import get_settings
 from api.auth import get_current_user, get_current_admin, hash_password, verify_password, create_session, destroy_session
+from api.dependencies import get_redis
+from redis import Redis
+from core.rate_limiter import check_rate_limit
 
 router = APIRouter()
 settings = get_settings()
@@ -492,10 +495,23 @@ async def logout(authorization: str = Header(None)):
 
 
 @router.post("/auth/send-verification")
-async def send_verification(current_user: User = Depends(get_current_user)):
+async def send_verification(
+    current_user: User = Depends(get_current_user),
+    redis_client: Redis = Depends(get_redis)
+):
     if not current_user.email:
         raise HTTPException(status_code=400, detail="User does not have an email registered")
     
+    # Check Redis rate limits
+    email = current_user.email
+    key_1m = f"rate:send_verification:1m:{email}"
+    key_1h = f"rate:send_verification:1h:{email}"
+    
+    if not check_rate_limit(redis_client, key_1m, max_requests=1, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Gửi yêu cầu quá nhanh. Vui lòng thử lại sau 1 phút.")
+    if not check_rate_limit(redis_client, key_1h, max_requests=5, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Bạn đã vượt quá số lần gửi mã cho phép trong 1 giờ. Vui lòng thử lại sau.")
+        
     db = get_session()
     try:
         db_user = db.query(User).filter(User.id == current_user.id).first()
@@ -545,7 +561,20 @@ async def verify_email(req: VerifyEmailRequest, current_user: User = Depends(get
 
 
 @router.post("/auth/forgot-password")
-async def forgot_password(req: ForgotPasswordRequest):
+async def forgot_password(
+    req: ForgotPasswordRequest,
+    redis_client: Redis = Depends(get_redis)
+):
+    # Check Redis rate limits
+    email = req.email
+    key_1m = f"rate:forgot_password:1m:{email}"
+    key_1h = f"rate:forgot_password:1h:{email}"
+    
+    if not check_rate_limit(redis_client, key_1m, max_requests=1, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Gửi yêu cầu quá nhanh. Vui lòng thử lại sau 1 phút.")
+    if not check_rate_limit(redis_client, key_1h, max_requests=5, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Bạn đã vượt quá số lần gửi mã cho phép trong 1 giờ. Vui lòng thử lại sau.")
+        
     db = get_session()
     try:
         db_user = db.query(User).filter(User.email == req.email).first()

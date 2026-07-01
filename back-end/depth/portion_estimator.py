@@ -18,6 +18,25 @@ def estimate_portion(
 ):
     """Estimate portion size using SAM 2 area ratio (primary) + depth visualization."""
     img_w, img_h = image.size
+    
+    # --- VRAM Guard: Downscale image if either dimension exceeds 1024px ---
+    MAX_SIZE = 1024
+    if img_w > MAX_SIZE or img_h > MAX_SIZE:
+        if img_w > img_h:
+            new_w = MAX_SIZE
+            new_h = int(img_h * (MAX_SIZE / img_w))
+        else:
+            new_h = MAX_SIZE
+            new_w = int(img_w * (MAX_SIZE / img_h))
+            
+        try:
+            resample_filter = Image.Resampling.BILINEAR
+        except AttributeError:
+            resample_filter = Image.BILINEAR
+            
+        image = image.resize((new_w, new_h), resample_filter)
+        img_w, img_h = image.size
+
     total_pixels = img_w * img_h
 
     # --- 1. Segment the dish / food mask ---

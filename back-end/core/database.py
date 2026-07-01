@@ -48,7 +48,7 @@ class Job(Base):
     progress = Column(JSON)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
 
