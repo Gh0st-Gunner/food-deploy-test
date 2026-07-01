@@ -8,13 +8,11 @@ Tài liệu này cung cấp hướng dẫn thiết lập môi trường và danh
 
 Trước khi tiến hành kiểm thử, hãy đảm bảo hệ thống đã được khởi chạy đầy đủ theo các bước sau:
 
-### Bước 1: Khởi động các dịch vụ Docker (PostgreSQL, Redis, MinIO)
-Đảm bảo phần mềm Docker Desktop đã được mở. Nhấp đúp vào tệp tin **[start.bat](file:///c:/Users/Home/Desktop/vn%20food/start.bat)** ở thư mục gốc để khởi chạy các container cơ sở dữ liệu và lưu trữ S3.
+### Bước 1: Khởi động toàn bộ hệ thống
+Đảm bảo phần mềm Docker Desktop đã được mở. Nhấp đúp vào tệp tin **[start.bat](file:///c:/Users/Home/Desktop/vn%20food/start.bat)** ở thư mục gốc để khởi chạy tất cả các dịch vụ (bao gồm cơ sở dữ liệu, Redis cache, MinIO S3, FastAPI gateway và các Celery workers).
 
-### Bước 2: Chạy API Backend và Celery Worker
-Nhấp đúp đồng thời vào 2 tệp script:
-1.  **[run_local.bat](file:///c:/Users/Home/Desktop/vn%20food/run_local.bat)** để khởi chạy FastAPI Server tại địa chỉ: `http://localhost:10800`
-2.  **[run_worker.bat](file:///c:/Users/Home/Desktop/vn%20food/run_worker.bat)** để khởi chạy trình xử lý AI Celery Worker (nếu bạn kiểm thử tính năng Quét ảnh AI).
+### Bước 2: Dừng toàn bộ hệ thống khi hoàn tất
+Sau khi thực hiện xong kiểm thử, nhấp đúp vào tệp tin **[stop.bat](file:///c:/Users/Home/Desktop/vn%20food/stop.bat)** ở thư mục gốc để dừng toàn bộ container và dọn dẹp các tài nguyên nền.
 
 ---
 
