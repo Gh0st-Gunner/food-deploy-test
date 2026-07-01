@@ -18,11 +18,15 @@ settings = get_settings()
 @celery.task(queue="nutrition")
 def lookup_nutrition_task(job_id: str, class_name: str = None):
     """Look up nutrition data for the classified food."""
-    if not class_name:
-        from core.database import get_job
-        job = get_job(job_id)
-        if job:
-            class_name = job.class_name
+    from core.database import get_job
+    job = get_job(job_id)
+    if job and job.nutrition:
+        print("Nutrition already populated (e.g. by Ollama Vision). Skipping lookup.")
+        update_job(job_id, progress={**_get_progress(job_id), "nutrition": "completed"})
+        return {"nutrition": "done", "source": job.nutrition_source or "ollama"}
+
+    if not class_name and job:
+        class_name = job.class_name
 
     update_job(job_id, progress={**_get_progress(job_id), "nutrition": "running"})
 

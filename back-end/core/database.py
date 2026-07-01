@@ -86,9 +86,21 @@ def _get_engine():
         # SQLite fallback for local dev without PostgreSQL
         if db_url.startswith("sqlite"):
             _engine = create_engine(db_url, connect_args={"check_same_thread": False})
+            _SessionLocal = sessionmaker(bind=_engine, autocommit=False, autoflush=True)
         else:
-            _engine = create_engine(db_url, pool_size=10, max_overflow=20)
-        _SessionLocal = sessionmaker(bind=_engine, autocommit=False, autoflush=True)
+            try:
+                temp_engine = create_engine(db_url, pool_size=10, max_overflow=20)
+                # Test connection immediately
+                with temp_engine.connect() as conn:
+                    pass
+                _engine = temp_engine
+                _SessionLocal = sessionmaker(bind=_engine, autocommit=False, autoflush=True)
+                print("Database: Connected to PostgreSQL database successfully.")
+            except Exception as e:
+                print(f"Database: PostgreSQL connection failed: {e}. Falling back to SQLite backup database!")
+                backup_url = "sqlite:///vnfood_backup.db"
+                _engine = create_engine(backup_url, connect_args={"check_same_thread": False})
+                _SessionLocal = sessionmaker(bind=_engine, autocommit=False, autoflush=True)
     return _engine
 
 

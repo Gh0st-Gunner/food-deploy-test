@@ -59,6 +59,7 @@ services:
       - "10800:10800"
     volumes:
       - ./front-end/static:/app/front-end/static
+      - ./back-end:/app/back-end
     environment:
       PYTHONPATH: /app/back-end
       VNFOOD_DATABASE_URL: postgresql://vnfood:vnfood@db:5432/vnfood
@@ -71,6 +72,10 @@ services:
       VNFOOD_S3_SECRET_KEY: minioadmin
       VNFOOD_S3_BUCKET: vn-food-images
       VNFOOD_USDA_API_KEY: ${VNFOOD_USDA_API_KEY:-}
+      VNFOOD_OLLAMA_HOST: http://host.docker.internal:11434
+      VNFOOD_GEMINI_API_KEY: ${VNFOOD_GEMINI_API_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
@@ -83,6 +88,9 @@ services:
       context: .
       dockerfile: Dockerfile
     command: celery -A workers.celery_app worker -Q classification -c 2 --loglevel=info
+    volumes:
+      - ./back-end:/app/back-end
+      - ./models:/app/models
     environment:
       PYTHONPATH: /app/back-end
       VNFOOD_DATABASE_URL: postgresql://vnfood:vnfood@db:5432/vnfood
@@ -94,6 +102,10 @@ services:
       VNFOOD_S3_SECRET_KEY: minioadmin
       VNFOOD_S3_BUCKET: vn-food-images
       VNFOOD_WORKER_PRELOAD_MODELS: classification
+      VNFOOD_OLLAMA_HOST: http://host.docker.internal:11434
+      VNFOOD_GEMINI_API_KEY: ${VNFOOD_GEMINI_API_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       redis:
         condition: service_healthy
@@ -104,6 +116,8 @@ services:
       context: .
       dockerfile: Dockerfile
     command: celery -A workers.celery_app worker -Q detection -c 1 --loglevel=info
+    volumes:
+      - ./back-end:/app/back-end
     environment:
       PYTHONPATH: /app/back-end
       VNFOOD_DATABASE_URL: postgresql://vnfood:vnfood@db:5432/vnfood
@@ -125,6 +139,8 @@ services:
       context: .
       dockerfile: Dockerfile
     command: celery -A workers.celery_app worker -Q nutrition -c 4 --loglevel=info
+    volumes:
+      - ./back-end:/app/back-end
     environment:
       PYTHONPATH: /app/back-end
       VNFOOD_DATABASE_URL: postgresql://vnfood:vnfood@db:5432/vnfood
@@ -146,6 +162,8 @@ services:
       context: .
       dockerfile: Dockerfile
     command: celery -A workers.celery_app worker -Q default -c 2 --loglevel=info
+    volumes:
+      - ./back-end:/app/back-end
     environment:
       PYTHONPATH: /app/back-end
       VNFOOD_DATABASE_URL: postgresql://vnfood:vnfood@db:5432/vnfood

@@ -145,3 +145,27 @@ class AdminStatsResponse(BaseModel):
     completed_jobs: int
     failed_jobs: int
     db_status: str
+
+
+class RecommendUserProfile(BaseModel):
+    gender: Optional[str] = None
+    age: Optional[int] = None
+    weight: Optional[float] = None
+    goal: Optional[str] = None
+    target_calories: Optional[int] = None
+    target_protein: Optional[int] = None
+    target_carbs: Optional[int] = None
+    target_fat: Optional[int] = None
+
+
+class RecommendMealItem(BaseModel):
+    name: str
+    calories: int
+    protein: int
+    carbs: int
+    fat: int
+
+
+class RecommendRequest(BaseModel):
+    user_profile: RecommendUserProfile
+    recent_meals: list[RecommendMealItem]

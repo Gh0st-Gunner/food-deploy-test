@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     usda_api_key: str = ""
     fatsecret_client_id: str = ""
     fatsecret_client_secret: str = ""
+    ollama_token: str = ""
+    ollama_host: str = "http://localhost:11434"
+    gemini_api_key: str = ""
 
     # Model paths
     models_dir: str = "models"

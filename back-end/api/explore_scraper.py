@@ -5,9 +5,9 @@ import re
 import time
 from typing import List, Dict
 
-# In-memory cache
-# Format: {"timestamp": float, "items": list}
-EXPLORE_CACHE: Dict = {"timestamp": 0.0, "items": []}
+# In-memory caches by macro signature
+# Format: {cache_key: {"timestamp": float, "items": list}}
+EXPLORE_CACHES: Dict[str, Dict] = {}
 CACHE_TTL = 3600  # 1 hour in seconds
 
 DEFAULT_DISHES = [
@@ -273,15 +273,54 @@ def parse_recipe_from_text(content: str) -> Dict:
         "recipe_instructions": instructions
     }
 
-def scrape_ollama_search_feed() -> List[Dict]:
+def scrape_ollama_search_feed(
+    calories: int = None,
+    protein: int = None,
+    carbs: int = None,
+    fat: int = None,
+    ingredients: str = None
+) -> List[Dict]:
+    from core.settings import get_settings
+    settings = get_settings()
+
     url = "https://ollama.com/api/web_search"
-    token = "e061ec7dc7694e3b98d77843718d1d82.ssyhDdX98E_8-uwlcQ6E4mrF"
+    token = settings.ollama_token or "b03338bd9ac347d38847a7bcd80f5e0f.37ZKaVtFf7B7CHNv0HxD2H8P"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
     }
+
+    # Dynamically build query fit for the input BMR goals and available ingredients
+    if ingredients:
+        query = f"healthy Vietnamese recipes using {ingredients}"
+        if calories or protein or carbs or fat:
+            parts = []
+            if calories:
+                parts.append(f"around {calories} kcal")
+            if protein:
+                parts.append(f"around {protein}g protein")
+            if carbs:
+                parts.append(f"around {carbs}g carbs")
+            if fat:
+                parts.append(f"around {fat}g fat")
+            query += f" with {', '.join(parts)}"
+        query += " with ingredients and instructions"
+    elif calories or protein or carbs or fat:
+        parts = []
+        if calories:
+            parts.append(f"around {calories} kcal")
+        if protein:
+            parts.append(f"around {protein}g protein")
+        if carbs:
+            parts.append(f"around {carbs}g carbs")
+        if fat:
+            parts.append(f"around {fat}g fat")
+        query = f"healthy Vietnamese recipes with {', '.join(parts)} with ingredients instructions"
+    else:
+        query = "healthy Vietnamese recipes with calories protein carbs fat ingredients instructions"
+
     data = {
-        "query": "healthy Vietnamese recipes with calories protein carbs fat ingredients instructions",
+        "query": query,
         "max_results": 5
     }
     
@@ -313,16 +352,30 @@ def scrape_ollama_search_feed() -> List[Dict]:
         print(f"Error calling Ollama search API: {e}")
         return []
 
-def get_explore_dishes() -> List[Dict]:
-    """Retrieves and returns explore dishes list with in-memory TTL caching."""
-    global EXPLORE_CACHE
+def get_explore_dishes(
+    calories: int = None,
+    protein: int = None,
+    carbs: int = None,
+    fat: int = None
+) -> List[Dict]:
+    """Retrieves and returns explore dishes list with in-memory TTL caching based on macro goals."""
+    global EXPLORE_CACHES
     
+    cache_key = f"{calories or ''}-{protein or ''}-{carbs or ''}-{fat or ''}"
     current_time = time.time()
-    if EXPLORE_CACHE["items"] and (current_time - EXPLORE_CACHE["timestamp"] < CACHE_TTL):
-        return EXPLORE_CACHE["items"]
+    
+    if cache_key in EXPLORE_CACHES:
+        cache = EXPLORE_CACHES[cache_key]
+        if cache["items"] and (current_time - cache["timestamp"] < CACHE_TTL):
+            return cache["items"]
         
-    print("Scraping fresh explore dishes using Ollama Web Search API...")
-    feed_items = scrape_ollama_search_feed()
+    print(f"Scraping fresh explore dishes using Ollama Web Search API for {cache_key}...")
+    feed_items = scrape_ollama_search_feed(
+        calories=calories,
+        protein=protein,
+        carbs=carbs,
+        fat=fat
+    )
     
     if not feed_items:
         print("Ollama Web Search API failed. Returning default seeded recipes.")
@@ -341,9 +394,96 @@ def get_explore_dishes() -> List[Dict]:
     # If the list is empty, default it
     if not scraped_dishes:
         scraped_dishes = DEFAULT_DISHES
-
-    EXPLORE_CACHE = {
+        
+    EXPLORE_CACHES[cache_key] = {
         "timestamp": current_time,
         "items": scraped_dishes
     }
+    return scraped_dishes
+
+def generate_fallback_recipe(ingredients: str, calories: int = None, protein: int = None, carbs: int = None, fat: int = None) -> List[Dict]:
+    """Generates a mock recipe based on the input ingredients when Ollama Search is offline."""
+    import re
+    # Clean and split ingredients
+    ing_list = [i.strip() for i in re.split(r'[,\s]+', ingredients) if i.strip()]
+    if not ing_list:
+        ing_list = ["healthy vegetables"]
+        
+    title = f"Vietnamese Stir-Fry with " + " and ".join([i.capitalize() for i in ing_list[:2]])
+    if len(ing_list) > 2:
+        title += " & Herbs"
+        
+    # Estimate reasonable macros based on target calories
+    cal_target = calories or 400
+    p_target = protein or int((cal_target * 0.25) / 4)
+    c_target = carbs or int((cal_target * 0.45) / 4)
+    f_target = fat or int((cal_target * 0.30) / 9)
+    
+    # Construct ingredients list
+    recipe_ingredients = [f"200g of fresh {ing}" for ing in ing_list]
+    recipe_ingredients.extend([
+        "2 cloves garlic, minced",
+        "1 tablespoon vegetable oil",
+        "1.5 tablespoons premium Vietnamese fish sauce (nước mắm)",
+        "1 teaspoon sugar",
+        "Fresh cilantro and chopped green onions for garnish"
+    ])
+    
+    # Construct instructions
+    recipe_instructions = [
+        "Wash and prep all ingredients, slicing them into bite-sized pieces.",
+        "Heat the vegetable oil in a pan or wok over medium-high heat.",
+        "Add the minced garlic and sauté for 1 minute until fragrant.",
+        f"Add the {', '.join(ing_list)} and stir-fry for 5-7 minutes until tender.",
+        "Drizzle the fish sauce and sprinkle sugar over the ingredients, tossing to coat evenly.",
+        "Garnish with fresh cilantro and chopped green onions. Serve hot."
+    ]
+    
+    # Return structured recipe
+    return [{
+        "title": title,
+        "link": "https://healthyvietnameserecipes.com/custom-stir-fry",
+        "description": f"A quick, healthy Vietnamese style stir-fry featuring fresh {', '.join(ing_list)}. High in nutrition and tailored to your macro goals.",
+        "image_url": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400",
+        "calories": cal_target,
+        "protein": p_target,
+        "carbs": c_target,
+        "fat": f_target,
+        "recipe_ingredients": recipe_ingredients,
+        "recipe_instructions": recipe_instructions
+    }]
+
+def generate_recipes_from_ingredients(
+    ingredients: str,
+    calories: int = None,
+    protein: int = None,
+    carbs: int = None,
+    fat: int = None
+) -> List[Dict]:
+    """Scrapes recipes containing the given ingredients and fitting optional target macros."""
+    print(f"Scraping recipes for ingredients: {ingredients}...")
+    feed_items = scrape_ollama_search_feed(
+        calories=calories,
+        protein=protein,
+        carbs=carbs,
+        fat=fat,
+        ingredients=ingredients
+    )
+    
+    scraped_dishes = []
+    if feed_items:
+        for item in feed_items:
+            details = parse_recipe_from_text(item["content"])
+            scraped_dishes.append({
+                "title": item["title"],
+                "link": item["link"],
+                "description": item["description"],
+                **details
+            })
+            
+    # Fallback to local generator if Ollama Search is offline or returned empty list
+    if not scraped_dishes:
+        print("Ollama Web Search API failed or returned empty results. Returning dynamic backup recipe.")
+        scraped_dishes = generate_fallback_recipe(ingredients, calories, protein, carbs, fat)
+        
     return scraped_dishes

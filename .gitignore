@@ -29,5 +29,6 @@ Thumbs.db
 
 # Credentials
 fatsecret.txt
+.accounts.txt
 
 /storage

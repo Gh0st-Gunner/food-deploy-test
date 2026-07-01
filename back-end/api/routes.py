@@ -1,6 +1,7 @@
 import base64
 import io
 from datetime import datetime
+from typing import Optional
 
 import requests as http_requests
 from fastapi import APIRouter, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Depends, Header
@@ -9,7 +10,8 @@ from api.schemas import (
     AnalyzeRequest, AnalyzeResponse, JobStatusResponse,
     AnalysisResult, ModelInfo, HealthResponse,
     UserRegisterRequest, UserLoginRequest, UserLoginResponse,
-    UserResponse, UserCreateRequest, UserUpdateRequest, AdminStatsResponse
+    UserResponse, UserCreateRequest, UserUpdateRequest, AdminStatsResponse,
+    RecommendRequest
 )
 from core.database import create_job, get_job, update_job, init_db, get_session, User, UserSession, Job
 from sqlalchemy import text
@@ -232,7 +234,7 @@ async def list_models():
     """List available classification models."""
     registry = ModelRegistry()
     available = registry.list_classification_models()
-    return [
+    models = [
         ModelInfo(
             name=name,
             path=path,
@@ -240,13 +242,98 @@ async def list_models():
         )
         for name, path in available.items()
     ]
+    
+    # Always include Google Gemini option
+    models.append(ModelInfo(name="gemini:gemini-1.5-flash", path="cloud", type="gemini"))
+    
+    # Dynamically query local Ollama instance for pulled models
+    import requests
+    from core.settings import get_settings
+    settings = get_settings()
+    
+    try:
+        ollama_url = settings.ollama_host
+        if "localhost" in ollama_url or "127.0.0.1" in ollama_url:
+            ollama_url = ollama_url.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal")
+            
+        r = requests.get(f"{ollama_url}/api/tags", timeout=1.0)
+        if r.status_code == 200:
+            ollama_data = r.json()
+            local_models = ollama_data.get("models", [])
+            for m in local_models:
+                m_name = m.get("name", "")
+                if m_name:
+                    models.append(ModelInfo(name=f"ollama:{m_name}", path="local", type="ollama"))
+    except Exception as e:
+        print(f"Could not reach Ollama at {settings.ollama_host} to list tags: {e}")
+        
+    # Fallback to templates if Ollama is empty/offline
+    if not any(m.name.startswith("ollama:") for m in models):
+        models.append(ModelInfo(name="ollama:llava", path="local", type="ollama"))
+        models.append(ModelInfo(name="ollama:llava-phi3", path="local", type="ollama"))
+        models.append(ModelInfo(name="ollama:bakllava", path="local", type="ollama"))
+        
+    return models
 
 
 @router.get("/explore")
-async def explore():
+async def explore(
+    calories: Optional[int] = None,
+    protein: Optional[int] = None,
+    carbs: Optional[int] = None,
+    fat: Optional[int] = None
+):
     """Retrieve scraped healthy food options for exploring new dishes."""
     from api.explore_scraper import get_explore_dishes
-    return get_explore_dishes()
+    return get_explore_dishes(
+        calories=calories,
+        protein=protein,
+        carbs=carbs,
+        fat=fat
+    )
+
+
+@router.get("/explore/generate")
+async def explore_generate(
+    ingredients: str,
+    calories: Optional[int] = None,
+    protein: Optional[int] = None,
+    carbs: Optional[int] = None,
+    fat: Optional[int] = None
+):
+    """Generate healthy recipes based on provided ingredients and target macros."""
+    from api.explore_scraper import generate_recipes_from_ingredients
+    return generate_recipes_from_ingredients(
+        ingredients=ingredients,
+        calories=calories,
+        protein=protein,
+        carbs=carbs,
+        fat=fat
+    )
+
+
+@router.post("/explore/recommend")
+async def explore_recommend(request: RecommendRequest):
+    """Rank and filter explore dishes using personalized Flavor AI recommendation engine."""
+    from api.explore_scraper import get_explore_dishes
+    from api.recommendation_engine import recommend_dishes
+    
+    profile_dict = request.user_profile.model_dump()
+    recent_meals_dicts = [meal.model_dump() for meal in request.recent_meals]
+    
+    candidates = get_explore_dishes(
+        calories=profile_dict.get("target_calories"),
+        protein=profile_dict.get("target_protein"),
+        carbs=profile_dict.get("target_carbs"),
+        fat=profile_dict.get("target_fat")
+    )
+    
+    ranked_dishes = recommend_dishes(
+        user_profile=profile_dict,
+        recent_meals=recent_meals_dicts,
+        candidate_dishes=candidates
+    )
+    return ranked_dishes
 
 
 @router.websocket("/jobs/{job_id}/stream")

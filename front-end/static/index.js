@@ -279,6 +279,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const session = localStorage.getItem('munchin_session');
         if (session) {
             currentUser = JSON.parse(session);
+            if (currentUser && currentUser.role === 'admin') {
+                window.location.href = '/admin.html';
+                return;
+            }
             loadUserDashboard();
         } else {
             // Show Onboarding Welcome
@@ -1445,6 +1449,29 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDashboardValues();
         showToast(`Logged "${name}" (${cal} kcal) to ${category || activeCategory}`, 'success');
         pushNotification(`Logged "${name}" (${cal} kcal) to ${category || activeCategory}`, 'add');
+
+        // Close scan results panel if it was open
+        const resultPanel = document.getElementById('result-panel-revamp');
+        if (resultPanel) {
+            resultPanel.style.display = 'none';
+        }
+
+        // Show custom success modal
+        const successModal = document.getElementById('success-modal');
+        if (successModal) {
+            const catNames = { 'breakfast': 'Bữa Sáng', 'lunch': 'Bữa Trưa', 'dinner': 'Bữa Tối' };
+            const targetCat = category || activeCategory;
+            const viCat = catNames[targetCat] || targetCat;
+            const successMsg = `Món ăn "${name}" (${cal} kcal) đã được lưu thành công vào ${viCat}!`;
+            
+            const msgEl = document.getElementById('success-modal-msg');
+            if (msgEl) msgEl.textContent = successMsg;
+            
+            successModal.classList.add('active');
+        } else {
+            resetScanDropzone();
+            showAppScreen('home');
+        }
     }
 
     // ----------------------------------
@@ -1478,6 +1505,10 @@ document.addEventListener('DOMContentLoaded', () => {
     tabNavBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const screen = btn.dataset.screen;
+            if (screen === 'scan') {
+                isViewingSavedMeal = false;
+                resetScanDropzone();
+            }
             showAppScreen(screen);
         });
     });
@@ -1799,6 +1830,27 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        const generateBtn = document.getElementById('planner-generate-btn');
+        if (generateBtn) {
+            generateBtn.addEventListener('click', generateMealRecipes);
+        }
+
+        const ingredientsInput = document.getElementById('planner-ingredients');
+        if (ingredientsInput) {
+            ingredientsInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    generateMealRecipes();
+                }
+            });
+        }
+
+        const aiToggle = document.getElementById('flavor-ai-toggle');
+        if (aiToggle) {
+            aiToggle.addEventListener('change', () => {
+                loadExploreDishes();
+            });
+        }
+
         // Pill categories inside Custom Meal form
         const pills = document.querySelectorAll('.meal-category-select-pill .pill-btn');
         pills.forEach(pill => {
@@ -1865,7 +1917,95 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
-        fetch('/api/v1/explore')
+        const aiToggle = document.getElementById('flavor-ai-toggle');
+        const isAiEnabled = aiToggle && aiToggle.checked;
+
+        if (isAiEnabled && currentUser) {
+            // Collect last 7 days of meals
+            const recentMeals = [];
+            const oneDayMs = 24 * 60 * 60 * 1000;
+            const today = new Date();
+            
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(today.getTime() - i * oneDayMs);
+                const yyyy = date.getFullYear();
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const dd = String(date.getDate()).padStart(2, '0');
+                const dateStr = `${yyyy}-${mm}-${dd}`;
+                
+                const mealsKey = `munchin_meals_${currentUser.username}_${dateStr}`;
+                const loggedMeals = JSON.parse(localStorage.getItem(mealsKey) || '[]');
+                loggedMeals.forEach(m => {
+                    recentMeals.push({
+                        name: m.name || '',
+                        calories: parseInt(m.calories || 0),
+                        protein: parseInt(m.protein || 0),
+                        carbs: parseInt(m.carbs || 0),
+                        fat: parseInt(m.fat || 0)
+                    });
+                });
+            }
+
+            // Collect user profile
+            const configKey = `munchin_user_config_${currentUser.username}`;
+            const userConfig = JSON.parse(localStorage.getItem(configKey) || '{}');
+            
+            const payload = {
+                user_profile: {
+                    gender: userConfig.gender || currentUser.gender || 'other',
+                    age: parseInt(userConfig.age || currentUser.age || 25),
+                    weight: parseFloat(userConfig.weight || currentUser.weight || 70),
+                    goal: userConfig.goal || currentUser.goal || 'maintain',
+                    target_calories: currentUser.targetCalories,
+                    target_protein: currentUser.macros ? currentUser.macros.protein : 120,
+                    target_carbs: currentUser.macros ? currentUser.macros.carbs : 200,
+                    target_fat: currentUser.macros ? currentUser.macros.fats : 60
+                },
+                recent_meals: recentMeals
+            };
+
+            fetch('/api/v1/explore/recommend', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(res => {
+                if (!res.ok) throw new Error("Flavor AI failed");
+                return res.json();
+            })
+            .then(dishes => {
+                renderExploreDishes(dishes, 'scraped-dishes-list');
+                pushNotification(`Personalized Flavor AI match successfully calculated!`, 'recipe');
+            })
+            .catch(err => {
+                console.error(err);
+                scrapedList.innerHTML = `
+                    <div class="loading-state">
+                        <i class="fa-solid fa-circle-exclamation text-coral"></i>
+                        <p>Flavor AI recommendation failed. Falling back...</p>
+                        <button class="btn btn-secondary btn-block" id="retry-explore-btn" style="height: 34px; font-size:11px; margin-top:8px;">Try Again</button>
+                    </div>
+                `;
+                const retryBtn = document.getElementById('retry-explore-btn');
+                if (retryBtn) {
+                    retryBtn.addEventListener('click', loadExploreDishes);
+                }
+            });
+            return;
+        }
+
+        let url = '/api/v1/explore';
+        if (currentUser) {
+            const calories = currentUser.targetCalories || '';
+            const protein = (currentUser.macros && currentUser.macros.protein) || '';
+            const carbs = (currentUser.macros && currentUser.macros.carbs) || '';
+            const fat = (currentUser.macros && currentUser.macros.fats) || '';
+            url += `?calories=${calories}&protein=${protein}&carbs=${carbs}&fat=${fat}`;
+        }
+
+        fetch(url)
             .then(res => {
                 if (!res.ok) throw new Error("Scraper failed");
                 return res.json();
@@ -1890,8 +2030,54 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    function renderExploreDishes(dishes) {
-        const scrapedList = document.getElementById('scraped-dishes-list');
+    function generateMealRecipes() {
+        const ingredientsInput = document.getElementById('planner-ingredients');
+        const ingredients = ingredientsInput ? ingredientsInput.value.trim() : '';
+        if (!ingredients) {
+            showToast('Please enter some ingredients first!', 'error');
+            return;
+        }
+
+        const plannerList = document.getElementById('planner-dishes-list');
+        plannerList.innerHTML = `
+            <div class="loading-state" style="text-align: center; padding: 24px;">
+                <i class="fa-solid fa-spinner fa-spin text-coral"></i>
+                <p>Generating matching recipes from Ollama...</p>
+            </div>
+        `;
+
+        let url = `/api/v1/explore/generate?ingredients=${encodeURIComponent(ingredients)}`;
+        if (currentUser) {
+            const calories = currentUser.targetCalories || '';
+            const protein = (currentUser.macros && currentUser.macros.protein) || '';
+            const carbs = (currentUser.macros && currentUser.macros.carbs) || '';
+            const fat = (currentUser.macros && currentUser.macros.fats) || '';
+            url += `&calories=${calories}&protein=${protein}&carbs=${carbs}&fat=${fat}`;
+        }
+
+        fetch(url)
+            .then(res => {
+                if (!res.ok) throw new Error("Planner failed");
+                return res.json();
+            })
+            .then(dishes => {
+                renderExploreDishes(dishes, 'planner-dishes-list');
+                pushNotification(`Generated ${dishes.length} tailored recipe ideas!`, 'recipe');
+            })
+            .catch(err => {
+                console.error(err);
+                plannerList.innerHTML = `
+                    <div class="loading-state" style="text-align: center; padding: 24px; color: var(--text-muted);">
+                        <i class="fa-solid fa-circle-exclamation text-coral"></i>
+                        <p>Failed to generate recipes. Please try again.</p>
+                    </div>
+                `;
+            });
+    }
+
+    function renderExploreDishes(dishes, containerId = 'scraped-dishes-list') {
+        const scrapedList = document.getElementById(containerId);
+        if (!scrapedList) return;
         scrapedList.innerHTML = '';
 
         if (!dishes || dishes.length === 0) {
@@ -1907,9 +2093,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'scraped-dish-card';
             
+            // Check if match score or rationale exists (Flavor AI)
+            const matchBadge = dish.match_score !== undefined ? `
+                <div class="scraped-ai-badge" style="position: absolute; top: 12px; left: 12px; background: rgba(163, 217, 46, 0.95); color: #000; padding: 4px 8px; border-radius: 8px; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); font-family: inherit; z-index: 2;">
+                    <i class="fa-solid fa-brain"></i> ${dish.match_score}% Match
+                </div>
+            ` : '';
+
+            const rationaleHtml = dish.rationale ? `
+                <div class="scraped-ai-rationale" style="background: rgba(240, 92, 59, 0.05); border-left: 3px solid var(--accent-coral); padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 10.5px; color: var(--text-muted); line-height: 1.45; font-family: inherit; display: flex; align-items: flex-start; gap: 6px;">
+                    <i class="fa-solid fa-sparkles" style="color: var(--accent-coral); margin-top: 2px;"></i> <span>${dish.rationale}</span>
+                </div>
+            ` : '';
+            
             card.innerHTML = `
-                <div class="scraped-dish-img-wrapper">
+                <div class="scraped-dish-img-wrapper" style="position: relative;">
                     <img src="${dish.image_url}" alt="${dish.title}" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400'">
+                    ${matchBadge}
                 </div>
                 <div class="scraped-dish-info">
                     <div class="scraped-dish-title-row">
@@ -1917,6 +2117,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="scraped-readmore-btn" style="font-family: inherit;">Read Recipe <i class="fa-solid fa-chevron-down"></i></button>
                     </div>
                     <p class="scraped-dish-desc">${dish.description}</p>
+                    ${rationaleHtml}
                     
                     <div class="recipe-expand-section" style="display: none; margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 12px; flex-direction: column; gap: 10px;">
                         <div class="recipe-ingredients-wrap">
@@ -2126,6 +2327,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function runLiveAIScan(imageSrc, isAccurate) {
+        isViewingSavedMeal = false;
         if (activeScanPollInterval) {
             clearInterval(activeScanPollInterval);
             activeScanPollInterval = null;
@@ -2591,21 +2793,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentScanResult.ingredients,
                 currentScanResult.depth_url
             );
-            
-            // Show custom success modal
-            if (successModal) {
-                const catNames = { 'breakfast': 'Bữa Sáng', 'lunch': 'Bữa Trưa', 'dinner': 'Bữa Tối' };
-                const viCat = catNames[targetCat] || targetCat;
-                const successMsg = `Món ăn "${currentScanResult.name}" (${currentScanResult.calories} kcal) đã được lưu thành công vào ${viCat}!`;
-                
-                const msgEl = document.getElementById('success-modal-msg');
-                if (msgEl) msgEl.textContent = successMsg;
-                
-                successModal.classList.add('active');
-            } else {
-                resetScanDropzone();
-                showAppScreen('home'); // Fallback if modal not present
-            }
         }
     });
 
@@ -2647,7 +2834,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 models.forEach(model => {
                     const opt = document.createElement('option');
                     opt.value = model.name;
-                    opt.textContent = model.name.split('/').pop().replace('.pth', '').replace('.onnx', '');
+                    opt.textContent = model.name.startsWith('ollama:')
+                        ? `Ollama: ${model.name.split(':')[1].toUpperCase()}`
+                        : model.name.startsWith('gemini:')
+                            ? `Gemini: ${model.name.split(':')[1].toUpperCase()}`
+                            : model.name.split('/').pop().replace('.pth', '').replace('.onnx', '');
                     modelSelectRevamp.appendChild(opt);
                 });
                 convertSelectToCustom(modelSelectRevamp);
