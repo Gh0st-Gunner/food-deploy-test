@@ -32,3 +32,10 @@ fatsecret.txt
 .accounts.txt
 
 /storage
+
+# Virtual environments
+venv/
+.venv/
+
+# Database
+*.db
