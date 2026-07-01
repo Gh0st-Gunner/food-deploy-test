@@ -13,6 +13,13 @@ class Settings(BaseSettings):
     redis_db: int = 0
     redis_password: str = ""
 
+    # SMTP for Email Flow
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "noreply@munchin.com"
+
     # PostgreSQL (use sqlite:///vnfood.db for local dev without PostgreSQL)
     database_url: str = "sqlite:///vnfood.db"
 

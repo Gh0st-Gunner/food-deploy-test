@@ -104,10 +104,11 @@ class HealthResponse(BaseModel):
 class UserRegisterRequest(BaseModel):
     username: str
     password: str
+    email: Optional[str] = None
 
 
 class UserLoginRequest(BaseModel):
-    username: str
+    username: str  # Can be username OR email
     password: str
 
 
@@ -120,9 +121,25 @@ class UserLoginResponse(BaseModel):
 class UserResponse(BaseModel):
     id: str
     username: str
+    email: Optional[str] = None
+    is_verified: bool
     role: str
     is_active: bool
     created_at: datetime
+
+
+class VerifyEmailRequest(BaseModel):
+    code: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    code: str
+    new_password: str
 
 
 class UserCreateRequest(BaseModel):

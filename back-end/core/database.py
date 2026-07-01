@@ -62,6 +62,12 @@ class User(Base):
     role = Column(String(20), default="user", nullable=False)  # "user" or "admin"
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Email Verification & Reset Password Fields
+    email = Column(String(150), unique=True, nullable=True, index=True)
+    is_verified = Column(Boolean, default=False, nullable=False)
+    verification_code = Column(String(10), nullable=True)
+    verification_code_expires_at = Column(DateTime, nullable=True)
 
 
 class UserSession(Base):

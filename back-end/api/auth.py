@@ -105,6 +105,8 @@ async def get_current_user(authorization: str = Header(None)) -> User:
         return User(
             id=user.id,
             username=user.username,
+            email=user.email,
+            is_verified=user.is_verified,
             role=user.role,
             is_active=user.is_active,
             created_at=user.created_at,

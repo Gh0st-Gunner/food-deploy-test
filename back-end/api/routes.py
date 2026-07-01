@@ -11,7 +11,7 @@ from api.schemas import (
     AnalysisResult, ModelInfo, HealthResponse,
     UserRegisterRequest, UserLoginRequest, UserLoginResponse,
     UserResponse, UserCreateRequest, UserUpdateRequest, AdminStatsResponse,
-    RecommendRequest
+    RecommendRequest, VerifyEmailRequest, ForgotPasswordRequest, ResetPasswordRequest
 )
 from core.database import create_job, get_job, update_job, init_db, get_session, User, UserSession, Job
 from sqlalchemy import text
@@ -417,17 +417,42 @@ async def register(request: UserRegisterRequest):
         existing = db.query(User).filter(User.username == request.username).first()
         if existing:
             raise HTTPException(status_code=400, detail="Username already exists")
+            
+        if request.email:
+            existing_email = db.query(User).filter(User.email == request.email).first()
+            if existing_email:
+                raise HTTPException(status_code=400, detail="Email already registered")
         
         hashed = hash_password(request.password)
         new_user = User(
             username=request.username,
+            email=request.email,
             hashed_password=hashed,
+            is_verified=False,
             role="user",
             is_active=True
         )
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
+        
+        # Send verification code if email is provided
+        if request.email:
+            import random
+            from datetime import timedelta
+            from core.email import send_email
+            
+            code = f"{random.randint(100000, 999999)}"
+            new_user.verification_code = code
+            new_user.verification_code_expires_at = datetime.utcnow() + timedelta(minutes=15)
+            db.commit()
+            
+            send_email(
+                request.email,
+                "Munchin' - Xac thuc tai khoan",
+                f"<h3>Xác thực tài khoản</h3><p>Mã xác thực tài khoản Munchin' của bạn là: <strong>{code}</strong>. Mã này có hiệu lực trong 15 phút.</p>"
+            )
+            
         return new_user
     finally:
         db.close()
@@ -437,9 +462,13 @@ async def register(request: UserRegisterRequest):
 async def login(request: UserLoginRequest):
     db = get_session()
     try:
-        user = db.query(User).filter(User.username == request.username).first()
+        # Search by username OR email
+        user = db.query(User).filter(
+            (User.username == request.username) | (User.email == request.username)
+        ).first()
+        
         if not user or not verify_password(request.password, user.hashed_password):
-            raise HTTPException(status_code=401, detail="Incorrect username or password")
+            raise HTTPException(status_code=401, detail="Incorrect username/email or password")
             
         if not user.is_active:
             raise HTTPException(status_code=403, detail="User account is deactivated")
@@ -460,6 +489,109 @@ async def logout(authorization: str = Header(None)):
         token = authorization.split(" ")[1]
         destroy_session(token)
     return {"message": "Successfully logged out"}
+
+
+@router.post("/auth/send-verification")
+async def send_verification(current_user: User = Depends(get_current_user)):
+    if not current_user.email:
+        raise HTTPException(status_code=400, detail="User does not have an email registered")
+    
+    db = get_session()
+    try:
+        db_user = db.query(User).filter(User.id == current_user.id).first()
+        if not db_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        if db_user.is_verified:
+            return {"message": "Email is already verified"}
+            
+        import random
+        from datetime import timedelta
+        from core.email import send_email
+        
+        code = f"{random.randint(100000, 999999)}"
+        db_user.verification_code = code
+        db_user.verification_code_expires_at = datetime.utcnow() + timedelta(minutes=15)
+        db.commit()
+        
+        send_email(
+            db_user.email,
+            "Munchin' - Xac thuc tai khoan",
+            f"<h3>Xác thực tài khoản</h3><p>Mã xác thực tài khoản Munchin' của bạn là: <strong>{code}</strong>. Mã này có hiệu lực trong 15 phút.</p>"
+        )
+        return {"message": "Verification email sent"}
+    finally:
+        db.close()
+
+
+@router.post("/auth/verify-email")
+async def verify_email(req: VerifyEmailRequest, current_user: User = Depends(get_current_user)):
+    db = get_session()
+    try:
+        db_user = db.query(User).filter(User.id == current_user.id).first()
+        if not db_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        if not db_user.verification_code or db_user.verification_code != req.code:
+            raise HTTPException(status_code=400, detail="Invalid verification code")
+        if db_user.verification_code_expires_at < datetime.utcnow():
+            raise HTTPException(status_code=400, detail="Verification code has expired")
+            
+        db_user.is_verified = True
+        db_user.verification_code = None
+        db_user.verification_code_expires_at = None
+        db.commit()
+        return {"message": "Email successfully verified"}
+    finally:
+        db.close()
+
+
+@router.post("/auth/forgot-password")
+async def forgot_password(req: ForgotPasswordRequest):
+    db = get_session()
+    try:
+        db_user = db.query(User).filter(User.email == req.email).first()
+        if not db_user:
+            return {"message": "If the email exists, a password reset code has been sent"}
+            
+        import random
+        from datetime import timedelta
+        from core.email import send_email
+        
+        code = f"{random.randint(100000, 999999)}"
+        db_user.verification_code = code
+        db_user.verification_code_expires_at = datetime.utcnow() + timedelta(minutes=15)
+        db.commit()
+        
+        send_email(
+            db_user.email,
+            "Munchin' - Yeu cau dat lai mat khau",
+            f"<h3>Đặt lại mật khẩu</h3><p>Mã đặt lại mật khẩu của bạn là: <strong>{code}</strong>. Mã này có hiệu lực trong 15 phút.</p>"
+        )
+        return {"message": "Password reset code sent"}
+    finally:
+        db.close()
+
+
+@router.post("/auth/reset-password")
+async def reset_password(req: ResetPasswordRequest):
+    db = get_session()
+    try:
+        db_user = db.query(User).filter(User.email == req.email).first()
+        if not db_user or not db_user.verification_code or db_user.verification_code != req.code:
+            raise HTTPException(status_code=400, detail="Invalid code or email")
+        if db_user.verification_code_expires_at < datetime.utcnow():
+            raise HTTPException(status_code=400, detail="Reset code has expired")
+            
+        db_user.hashed_password = hash_password(req.new_password)
+        db_user.verification_code = None
+        db_user.verification_code_expires_at = None
+        
+        from core.database import UserSession
+        db.query(UserSession).filter(UserSession.user_id == db_user.id).delete()
+        
+        db.commit()
+        return {"message": "Password successfully reset"}
+    finally:
+        db.close()
 
 
 # --- Admin User Management Endpoints ---
