@@ -1,5 +1,6 @@
 import numpy as np
 from PIL import Image
+import cv2
 
 from depth.food_densities import get_density
 from nutrition.food_mapping import TYPICAL_PORTION_GRAMS
@@ -19,58 +20,152 @@ def estimate_portion(
     img_w, img_h = image.size
     total_pixels = img_w * img_h
 
-    # --- Primary method: SAM 2 area ratio ---
-    # If we have ingredient masks from detection, use their combined area
-    food_pixel_count = 0
+    # --- 1. Segment the dish / food mask ---
+    dish_mask = None
     scaling_method = "typical_portion"
 
     if ingredient_masks:
+        # If we have ingredient masks, we combine them to form the food/dish mask
+        combined_mask = np.zeros((img_h, img_w), dtype=bool)
         for ing in ingredient_masks:
             mask = ing.get("mask")
             if mask is not None:
-                food_pixel_count += int(np.sum(mask))
+                # Ensure mask is boolean and correct size
+                if mask.shape != (img_h, img_w):
+                    mask_pil = Image.fromarray((mask * 255).astype(np.uint8)).resize((img_w, img_h), Image.NEAREST)
+                    mask = np.array(mask_pil) > 128
+                combined_mask = combined_mask | mask
+        if np.sum(combined_mask) > 0:
+            dish_mask = combined_mask
+            scaling_method = "area_ratio"
     else:
         # Use SAM 2 to segment the whole dish
-        food_pixel_count, scaling_method = _segment_dish(
+        dish_mask, scaling_method = _segment_dish(
             image, class_name, sam_model, sam_processor
         )
 
-    area_ratio = min(food_pixel_count / total_pixels, 1.0) if total_pixels > 0 else 0.5
+    # --- 2. Fit Ellipse to Plate & Calculate Camera Tilt / Physical Scale ---
+    fit_success = False
+    major_axis = 0.0
+    minor_axis = 0.0
+    tilt_ratio = 1.0
+    measured_diameter_px = 0.0
+    physical_scale_cm_per_px = None
+    food_pixel_count = 0
 
-    # Scale typical portion by area ratio
-    # A dish that fills the whole image is likely a full portion (ratio ~1.0)
-    # A dish that fills 25% of the image might be a half portion, etc.
-    typical = TYPICAL_PORTION_GRAMS.get(class_name, 300)
+    if dish_mask is not None and np.sum(dish_mask) > 0:
+        food_pixel_count = int(np.sum(dish_mask))
+        try:
+            # Convert mask to CV_8UC1
+            mask_uint8 = (dish_mask.astype(np.uint8)) * 255
+            contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if contours:
+                largest_contour = max(contours, key=cv2.contourArea)
+                if len(largest_contour) >= 5:
+                    ellipse = cv2.fitEllipse(largest_contour)
+                    (xc, yc), (d1, d2), angle = ellipse
+                    major_axis = max(d1, d2)
+                    minor_axis = min(d1, d2)
+                    
+                    if minor_axis > 0:
+                        tilt_ratio = major_axis / minor_axis
+                        # Cap tilt_ratio at 2.5 (about 66 degrees camera tilt) to prevent extreme scaling
+                        tilt_ratio = min(max(tilt_ratio, 1.0), 2.5)
+                        fit_success = True
+                        measured_diameter_px = major_axis
+        except Exception as e:
+            print(f"Plate ellipse fitting failed: {e}")
 
-    # Use a power curve: small area = small portion, but with diminishing returns
-    # ratio^0.7 gives a more realistic scaling than linear
-    # At ratio=1.0 -> weight = typical
-    # At ratio=0.5 -> weight = typical * 0.62 (not 0.5)
-    # At ratio=0.25 -> weight = typical * 0.37 (not 0.25)
-    portion_factor = area_ratio ** 0.7 if area_ratio > 0 else 1.0
+    plate_diameter = reference_height_cm or PLATE_DIAMETER_CM or 25.0
 
-    estimated_weight_g = typical * portion_factor
-    scaling_method = "area_ratio" if ingredient_masks or food_pixel_count > 0 else scaling_method
+    if fit_success and measured_diameter_px > 0:
+        physical_scale_cm_per_px = plate_diameter / measured_diameter_px
+        actual_area_cm2 = food_pixel_count * (physical_scale_cm_per_px ** 2) * tilt_ratio
+    else:
+        # Fallback if ellipse fit failed: use typical area ratio scale
+        area_ratio = min(food_pixel_count / total_pixels, 1.0) if total_pixels > 0 else 0.5
+        standard_plate_area = np.pi * ((plate_diameter / 2) ** 2)
+        actual_area_cm2 = area_ratio * standard_plate_area
 
-    # Sanity bounds
-    estimated_weight_g = max(estimated_weight_g, 10.0)
-    if estimated_weight_g > typical * 3:
-        estimated_weight_g = typical * 2.0
-
-    # --- Depth map for visualization only ---
+    # --- 3. Estimate Physical Height from Depth Map ---
     depth_map = None
+    avg_height_cm = 1.5  # default fallback average food height in cm
+    
     if depth_pipeline is not None:
-        depth_result = depth_pipeline(image)
-        depth_raw = np.array(depth_result["depth"]).astype(np.float32)
-        d_min = depth_raw.min()
-        d_max = depth_raw.max()
-        if d_max - d_min > 0:
-            depth_map = (depth_raw - d_min) / (d_max - d_min)
-        else:
-            depth_map = np.zeros_like(depth_raw)
+        try:
+            depth_result = depth_pipeline(image)
+            depth_raw = np.array(depth_result["depth"]).astype(np.float32)
+            d_min = depth_raw.min()
+            d_max = depth_raw.max()
+            if d_max - d_min > 0:
+                depth_map = (depth_raw - d_min) / (d_max - d_min)
+            else:
+                depth_map = np.zeros_like(depth_raw)
+                
+            # Estimate height if we have a mask and depth map
+            if dish_mask is not None and food_pixel_count > 0 and depth_map is not None:
+                # Resize depth map to match image/mask dimensions if necessary
+                if depth_map.shape != (img_h, img_w):
+                    depth_map_pil = Image.fromarray(depth_map).resize((img_w, img_h), Image.BILINEAR)
+                    depth_map = np.array(depth_map_pil)
+                
+                food_depths = depth_map[dish_mask]
+                
+                # Find base plate depth from boundary of dish mask
+                kernel = np.ones((5, 5), np.uint8)
+                eroded_mask = cv2.erode(dish_mask.astype(np.uint8), kernel, iterations=1)
+                boundary_mask = (dish_mask.astype(np.uint8) - eroded_mask) > 0
+                
+                if np.sum(boundary_mask) > 0:
+                    base_depth = np.median(depth_map[boundary_mask])
+                else:
+                    base_depth = np.percentile(food_depths, 10)
+                
+                # Relative heights above the plate (larger values mean closer/higher)
+                heights_rel = np.maximum(food_depths - base_depth, 0.0)
+                
+                # Map relative depth range to physical cm
+                if physical_scale_cm_per_px is not None:
+                    # Height scale is proportional to physical plate size
+                    depth_to_cm_factor = plate_diameter * 0.3
+                else:
+                    depth_to_cm_factor = 8.0  # standard 8cm height range fallback
+                
+                food_heights_cm = heights_rel * depth_to_cm_factor
+                avg_height_cm = float(np.mean(food_heights_cm))
+                # Bound avg_height_cm to realistic food heights: 0.5cm to 8.0cm
+                avg_height_cm = min(max(avg_height_cm, 0.5), 8.0)
+                
+        except Exception as e:
+            print(f"Depth height estimation failed: {e}")
 
+    # --- 4. Blended Weight Calculation & Safety Bounds ---
+    typical = TYPICAL_PORTION_GRAMS.get(class_name, 300)
     density = get_density(class_name)
-    estimated_volume_ml = estimated_weight_g / density if density > 0 else estimated_weight_g
+
+    # Volume-based estimation: Area * Height (1 cm^3 = 1 ml)
+    estimated_volume_ml = actual_area_cm2 * avg_height_cm
+    weight_by_volume = estimated_volume_ml * (density if density > 0 else 1.0)
+
+    # Heuristic area-ratio power-curve (original method)
+    area_ratio = min(food_pixel_count / total_pixels, 1.0) if total_pixels > 0 else 0.5
+    portion_factor = area_ratio ** 0.7 if area_ratio > 0 else 1.0
+    weight_by_area_ratio = typical * portion_factor
+
+    # Blend or choose method
+    if fit_success and depth_map is not None:
+        estimated_weight_g = weight_by_volume
+        scaling_method = "3d_volume_estimation"
+    else:
+        estimated_weight_g = weight_by_area_ratio
+        if scaling_method == "typical_portion" and food_pixel_count > 0:
+            scaling_method = "area_ratio"
+
+    # Safety bounds relative to typical portion to avoid extreme anomalies
+    min_weight = max(typical * 0.15, 15.0)
+    max_weight = typical * 2.5
+    estimated_weight_g = min(max(estimated_weight_g, min_weight), max_weight)
+
     nutrient_multiplier = estimated_weight_g / 100.0
 
     return {
@@ -82,6 +177,10 @@ def estimate_portion(
         "nutrient_multiplier": round(nutrient_multiplier, 2),
         "typical_portion_grams": typical,
         "area_ratio": round(area_ratio, 3),
+        "tilt_ratio": round(tilt_ratio, 2),
+        "average_height_cm": round(avg_height_cm, 2),
+        "plate_diameter_cm": plate_diameter,
+        "measured_diameter_px": round(measured_diameter_px, 1) if fit_success else None,
         "ingredient_volumes": None,
     }
 
@@ -91,12 +190,9 @@ def _segment_dish(image, class_name, sam_model, sam_processor):
     import torch
 
     if sam_model is None or sam_processor is None:
-        return 0, "typical_portion"
+        return None, "typical_portion"
 
     img_w, img_h = image.size
-
-    # Use automatic mask generation — segment center region as dish
-    # Feed the dish name as a point prompt at image center
     center_x, center_y = img_w // 2, img_h // 2
 
     try:
@@ -118,8 +214,7 @@ def _segment_dish(image, class_name, sam_model, sam_processor):
         mask_pil = mask_pil.resize((img_w, img_h), Image.NEAREST)
         mask_array = np.array(mask_pil) > 128
 
-        pixel_count = int(mask_array.sum())
-        return pixel_count, "sam_segmentation"
+        return mask_array, "sam_segmentation"
 
     except Exception:
-        return 0, "typical_portion"
+        return None, "typical_portion"
