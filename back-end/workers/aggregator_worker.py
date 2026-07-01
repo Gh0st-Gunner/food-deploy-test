@@ -66,6 +66,17 @@ TYPICAL_INGREDIENT_RATIOS = {
     }
 }
 
+def _get_nutrient_value(nutrition: dict, key: str, fallback: float = 0.0) -> float:
+    nut = nutrition.get(key)
+    if not nut:
+        return fallback
+    if isinstance(nut, dict):
+        return float(nut.get("value", fallback))
+    try:
+        return float(nut)
+    except (ValueError, TypeError):
+        return fallback
+
 def distribute_ingredient_weights(class_name: str, raw_ingredients: list, total_weight: float) -> list:
     """
     Consolidates raw ingredient detections and distributes the total portion weight
@@ -137,7 +148,7 @@ def distribute_ingredient_weights(class_name: str, raw_ingredients: list, total_
 
             calories = 0
             if nutrition:
-                cal_100g = nutrition.get("calories", 0.0) or nutrition.get("energy", 0.0)
+                cal_100g = _get_nutrient_value(nutrition, "calories") or _get_nutrient_value(nutrition, "energy")
                 calories = round((cal_100g * weight_g) / 100.0, 1)
 
             final_ingredients.append({
@@ -160,7 +171,7 @@ def distribute_ingredient_weights(class_name: str, raw_ingredients: list, total_
             nutrition = ing.get("nutrition", {})
             calories = 0
             if nutrition:
-                cal_100g = nutrition.get("calories", 0.0) or nutrition.get("energy", 0.0)
+                cal_100g = _get_nutrient_value(nutrition, "calories") or _get_nutrient_value(nutrition, "energy")
                 calories = round((cal_100g * weight_g) / 100.0, 1)
 
             final_ingredients.append({
