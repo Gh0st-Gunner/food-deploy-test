@@ -77,6 +77,62 @@ def _get_nutrient_value(nutrition: dict, key: str, fallback: float = 0.0) -> flo
     except (ValueError, TypeError):
         return fallback
 
+def normalize_and_split_ingredients(class_name: str, raw_ingredients: list) -> list:
+    """
+    Normalizes labels and splits combined labels (e.g. 'broth hoisin sauce')
+    into individual clean ingredient entries before weight distribution.
+    """
+    if not raw_ingredients:
+        return []
+
+    # Get the known ingredient list for the current dish
+    typical_set = set()
+    if class_name:
+        clean_class = class_name.lower().replace("_", "-")
+        ratio_template = TYPICAL_INGREDIENT_RATIOS.get(clean_class)
+        if ratio_template:
+            typical_set = set(ratio_template.keys())
+
+    processed_ingredients = []
+
+    for ing in raw_ingredients:
+        label = ing.get("label", "").rstrip(".").strip().lower()
+        if not label:
+            continue
+
+        # Find which typical ingredients are present in this label
+        matched_ingredients = []
+        for typical in typical_set:
+            if typical in label:
+                matched_ingredients.append(typical)
+
+        # Sort matches by length descending so longer matching phrases win first
+        matched_ingredients.sort(key=len, reverse=True)
+
+        # Filter out substrings (e.g. if 'hoisin sauce' matches, 'sauce' is also in template, we don't want duplicate 'sauce')
+        unique_matches = []
+        for m in matched_ingredients:
+            if not any(m in other for other in unique_matches):
+                unique_matches.append(m)
+
+        if len(unique_matches) > 1:
+            num_matches = len(unique_matches)
+            for matched in unique_matches:
+                new_ing = ing.copy()
+                new_ing["label"] = matched
+                new_ing["confidence"] = ing.get("confidence", 0.0) / num_matches
+                new_ing["mask_pixel_count"] = int(ing.get("mask_pixel_count", 0) / num_matches)
+                new_ing["mask_area_ratio"] = ing.get("mask_area_ratio", 0.0) / num_matches
+                processed_ingredients.append(new_ing)
+        elif len(unique_matches) == 1:
+            new_ing = ing.copy()
+            new_ing["label"] = unique_matches[0]
+            processed_ingredients.append(new_ing)
+        else:
+            processed_ingredients.append(ing)
+
+    return processed_ingredients
+
 def distribute_ingredient_weights(class_name: str, raw_ingredients: list, total_weight: float) -> list:
     """
     Consolidates raw ingredient detections and distributes the total portion weight
@@ -85,9 +141,12 @@ def distribute_ingredient_weights(class_name: str, raw_ingredients: list, total_
     if not raw_ingredients:
         return []
 
+    # Pre-process labels to normalize and split merged categories
+    normalized_raw = normalize_and_split_ingredients(class_name, raw_ingredients)
+
     # 1. Group and deduplicate raw detections by matching labels
     grouped = {}
-    for ing in raw_ingredients:
+    for ing in normalized_raw:
         label = ing.get("label", "").rstrip(".").strip().lower()
         if not label:
             continue
