@@ -680,9 +680,22 @@
 
                     <!-- Weekly progress Line Chart Card -->
                     <div class="chart-card card">
-                        <div class="chart-header">
-                            <h3>Weekly Calorie Intake</h3>
-                            <span class="chart-avg">Avg: <strong id="reports-avg-val">0</strong> kcal</span>
+                        <div class="chart-header" style="display: flex; flex-direction: column; gap: 8px; align-items: stretch; margin-bottom: 15px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                                <h3 id="reports-chart-title" style="margin: 0; font-size: 14px; font-weight: 600;">Weekly Calorie Intake</h3>
+                                <div class="select-wrapper-light" style="width: 100px; margin-bottom: 0; position: relative;">
+                                    <select id="reports-days-select" class="form-select-light" style="padding: 4px 24px 4px 8px; font-size: 11px; height: 28px; width: 100%; border-radius: 8px; border: 1px solid var(--border-color); background: #FFFFFF; font-weight: 600; cursor: pointer; -webkit-appearance: none; -moz-appearance: none; appearance: none;">
+                                        <option value="1">1 Day</option>
+                                        <option value="3">3 Days</option>
+                                        <option value="7" selected>7 Days</option>
+                                        <option value="30">30 Days</option>
+                                    </select>
+                                    <i class="fa-solid fa-chevron-down select-icon" style="font-size: 9px; right: 8px; top: 50%; transform: translateY(-50%); position: absolute; pointer-events: none; color: var(--text-muted);"></i>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                                <span class="chart-avg" style="font-size: 11px; color: var(--text-muted);">Avg: <strong id="reports-avg-val">0</strong> kcal</span>
+                            </div>
                         </div>
                         <div class="canvas-container">
                             <canvas id="progress-line-chart" width="350" height="180"></canvas>
@@ -1017,6 +1030,6 @@
     <!-- Custom Toast Container -->
     <div class="toast-container" id="toast-container"></div>
 
-    <script src="index.js?v=1.0.8"></script>
+    <script src="index.js?v=1.0.12"></script>
 </body>
 </html>

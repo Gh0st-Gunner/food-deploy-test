@@ -8,7 +8,7 @@ MODELS_DIR_FALLBACK = os.path.join(os.path.dirname(__file__), "models")
 
 GROUNDING_DINO_MODEL = "IDEA-Research/grounding-dino-tiny"
 SAM2_MODEL = "facebook/sam2.1-hiera-small"
-DEPTH_MODEL = "depth-anything/Depth-Anything-V2-Small-hf"
+DEPTH_MODEL = "intel/zoedepth-nyu"
 
 DEFAULT_BOX_THRESHOLD = 0.3
 DEFAULT_TEXT_THRESHOLD = 0.25

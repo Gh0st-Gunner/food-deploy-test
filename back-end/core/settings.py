@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     # Model IDs (HuggingFace)
     grounding_dino_model: str = "IDEA-Research/grounding-dino-tiny"
     sam2_model: str = "facebook/sam2.1-hiera-small"
-    depth_model: str = "depth-anything/Depth-Anything-V2-Small-hf"
+    depth_model: str = "intel/zoedepth-nyu"
 
     # Defaults
     default_box_threshold: float = 0.3

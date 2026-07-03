@@ -1384,7 +1384,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const result = {
                     name: meal.name,
-                    confidence: meal.confidence || 100,
+                    confidence: meal.confidence ? Math.min(99, meal.confidence) : 99,
                     portion: meal.portion || '1.0 portion',
                     calories: meal.calories,
                     protein: meal.protein,
@@ -1513,6 +1513,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Reports metric selector binding
+    const reportsMetricBtns = document.querySelectorAll('#reports-metric-select .pill-btn');
+    reportsMetricBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            reportsMetricBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeReportMetric = btn.dataset.metric;
+            drawProgressChart();
+        });
+    });
+
+    // Reports days select dropdown binding
+    const reportsDaysSelect = document.getElementById('reports-days-select');
+    if (reportsDaysSelect) {
+        reportsDaysSelect.addEventListener('change', (e) => {
+            activeReportDays = parseInt(e.target.value) || 7;
+            drawProgressChart();
+        });
+    }
+
     // Meal categories toggle breakfast / lunch / dinner
     mealCatBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1579,6 +1599,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------
     // 8. Canvas line chart drawings (Reports)
     // ----------------------------------
+    let activeReportMetric = 'calories';
+    let activeReportDays = 7;
+
     function drawProgressChart() {
         const canvas = document.getElementById('progress-line-chart');
         if (!canvas) return;
@@ -1590,19 +1613,64 @@ document.addEventListener('DOMContentLoaded', () => {
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Fetch values for last 7 days
-        const last7Days = [];
-        const dailyCalSums = [];
-        for (let i = -6; i <= 0; i++) {
+        // Fetch values for last N days based on active metric
+        const lastDaysLabels = [];
+        const dailySums = [];
+        for (let i = -(activeReportDays - 1); i <= 0; i++) {
             const dateObj = new Date();
             dateObj.setDate(dateObj.getDate() + i);
-            last7Days.push(dateObj.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + dateObj.getDate());
+            
+            // Format labels nicely
+            let label = "";
+            if (activeReportDays === 1) {
+                label = dateObj.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + dateObj.getDate();
+            } else if (activeReportDays <= 7) {
+                label = dateObj.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + dateObj.getDate();
+            } else {
+                label = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
+            lastDaysLabels.push(label);
             
             const dateKey = formatDateString(dateObj);
-            const mealsKey = `munchin_meals_${currentUser.username}_${dateKey}`;
-            const meals = JSON.parse(localStorage.getItem(mealsKey)) || [];
-            const sum = meals.reduce((s, m) => s + m.calories, 0);
-            dailyCalSums.push(sum);
+            let val = 0;
+            
+            if (activeReportMetric === 'calories') {
+                const mealsKey = `munchin_meals_${currentUser.username}_${dateKey}`;
+                const meals = JSON.parse(localStorage.getItem(mealsKey)) || [];
+                val = meals.reduce((s, m) => s + m.calories, 0);
+            } else if (activeReportMetric === 'protein') {
+                const mealsKey = `munchin_meals_${currentUser.username}_${dateKey}`;
+                const meals = JSON.parse(localStorage.getItem(mealsKey)) || [];
+                val = meals.reduce((s, m) => s + m.protein, 0);
+            } else if (activeReportMetric === 'fat') {
+                const mealsKey = `munchin_meals_${currentUser.username}_${dateKey}`;
+                const meals = JSON.parse(localStorage.getItem(mealsKey)) || [];
+                val = meals.reduce((s, m) => s + m.fat, 0);
+            } else if (activeReportMetric === 'carbs') {
+                const mealsKey = `munchin_meals_${currentUser.username}_${dateKey}`;
+                const meals = JSON.parse(localStorage.getItem(mealsKey)) || [];
+                val = meals.reduce((s, m) => s + (m.carbs || 0), 0);
+            } else if (activeReportMetric === 'weight') {
+                const weightKey = `munchin_weight_${currentUser.username}`;
+                const weightHistory = JSON.parse(localStorage.getItem(weightKey)) || [];
+                const log = weightHistory.find(w => w.date === dateKey);
+                if (log) {
+                    val = log.weight;
+                } else {
+                    const previousLogs = weightHistory.filter(w => new Date(w.date) <= new Date(dateKey));
+                    if (previousLogs.length > 0) {
+                        previousLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
+                        val = previousLogs[0].weight;
+                    } else {
+                        val = currentUser ? currentUser.weight : 70;
+                    }
+                }
+            } else if (activeReportMetric === 'exercise') {
+                const workoutsKey = `munchin_workouts_${currentUser.username}_${dateKey}`;
+                const workouts = JSON.parse(localStorage.getItem(workoutsKey)) || [];
+                val = workouts.reduce((s, w) => s + w.calories, 0);
+            }
+            dailySums.push(val);
         }
 
         // Draw graph borders/grids
@@ -1613,7 +1681,55 @@ document.addEventListener('DOMContentLoaded', () => {
         const chartWidth = canvas.width - paddingLeft - paddingRight;
         const chartHeight = canvas.height - paddingTop - paddingBottom;
 
-        const maxVal = Math.max(3000, Math.max(...dailyCalSums) + 500);
+        // Dynamic configs
+        let prefix = "Weekly";
+        if (activeReportDays === 1) prefix = "Daily";
+        else if (activeReportDays === 3) prefix = "3-Day";
+        else if (activeReportDays === 30) prefix = "Monthly";
+
+        let metricTitle = `${prefix} Calorie Intake`;
+        let unit = "kcal";
+        let themeColor = "#F05C3B";
+        let fillGradientStart = "rgba(240, 92, 59, 0.2)";
+        let fillGradientEnd = "rgba(240, 92, 59, 0.0)";
+        let maxVal = Math.max(3000, Math.max(...dailySums) + 500);
+
+        if (activeReportMetric === 'protein') {
+            metricTitle = `${prefix} Protein Intake`;
+            unit = "g";
+            themeColor = "#8E52E9";
+            fillGradientStart = "rgba(142, 82, 233, 0.2)";
+            fillGradientEnd = "rgba(142, 82, 233, 0.0)";
+            maxVal = Math.max(150, Math.max(...dailySums) + 20);
+        } else if (activeReportMetric === 'fat') {
+            metricTitle = `${prefix} Fat Intake`;
+            unit = "g";
+            themeColor = "#FF9500";
+            fillGradientStart = "rgba(255, 149, 0, 0.2)";
+            fillGradientEnd = "rgba(255, 149, 0, 0.0)";
+            maxVal = Math.max(100, Math.max(...dailySums) + 15);
+        } else if (activeReportMetric === 'carbs') {
+            metricTitle = `${prefix} Carbohydrates Intake`;
+            unit = "g";
+            themeColor = "#34C759";
+            fillGradientStart = "rgba(52, 199, 89, 0.2)";
+            fillGradientEnd = "rgba(52, 199, 89, 0.0)";
+            maxVal = Math.max(300, Math.max(...dailySums) + 40);
+        } else if (activeReportMetric === 'weight') {
+            metricTitle = `${prefix} Weight History`;
+            unit = currentUser ? (currentUser.weightUnit === 'lbs' ? 'Lbs' : 'Kg') : 'Kg';
+            themeColor = "#007AFF";
+            fillGradientStart = "rgba(0, 122, 255, 0.2)";
+            fillGradientEnd = "rgba(0, 122, 255, 0.0)";
+            maxVal = Math.max(150, Math.max(...dailySums) + 20);
+        } else if (activeReportMetric === 'exercise') {
+            metricTitle = `${prefix} Active Burn`;
+            unit = "kcal";
+            themeColor = "#30D158";
+            fillGradientStart = "rgba(48, 209, 88, 0.2)";
+            fillGradientEnd = "rgba(48, 209, 88, 0.0)";
+            maxVal = Math.max(1000, Math.max(...dailySums) + 200);
+        }
 
         // Y Axis helper
         ctx.strokeStyle = '#EFEFF4';
@@ -1636,41 +1752,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Generate line path coordinates
         const coords = [];
-        const xStep = chartWidth / (dailyCalSums.length - 1);
+        const xStep = activeReportDays > 1 ? chartWidth / (dailySums.length - 1) : chartWidth / 2;
         
-        dailyCalSums.forEach((sum, idx) => {
-            const x = paddingLeft + idx * xStep;
+        dailySums.forEach((sum, idx) => {
+            const x = activeReportDays > 1 ? (paddingLeft + idx * xStep) : (paddingLeft + chartWidth / 2);
             const y = canvas.height - paddingBottom - (sum / maxVal) * chartHeight;
             coords.push({ x, y, val: sum });
         });
 
         // Draw line fill gradient
-        const fillGrad = ctx.createLinearGradient(0, paddingTop, 0, canvas.height - paddingBottom);
-        fillGrad.addColorStop(0, 'rgba(240, 92, 59, 0.2)');
-        fillGrad.addColorStop(1, 'rgba(240, 92, 59, 0.0)');
+        if (coords.length > 1) {
+            const fillGrad = ctx.createLinearGradient(0, paddingTop, 0, canvas.height - paddingBottom);
+            fillGrad.addColorStop(0, fillGradientStart);
+            fillGrad.addColorStop(1, fillGradientEnd);
 
-        ctx.beginPath();
-        ctx.moveTo(coords[0].x, canvas.height - paddingBottom);
-        coords.forEach(coord => ctx.lineTo(coord.x, coord.y));
-        ctx.lineTo(coords[coords.length - 1].x, canvas.height - paddingBottom);
-        ctx.closePath();
-        ctx.fillStyle = fillGrad;
-        ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(coords[0].x, canvas.height - paddingBottom);
+            coords.forEach(coord => ctx.lineTo(coord.x, coord.y));
+            ctx.lineTo(coords[coords.length - 1].x, canvas.height - paddingBottom);
+            ctx.closePath();
+            ctx.fillStyle = fillGrad;
+            ctx.fill();
 
-        // Draw line path stroke
-        ctx.strokeStyle = '#F05C3B';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(coords[0].x, coords[0].y);
-        for (let i = 1; i < coords.length; i++) {
-            ctx.lineTo(coords[i].x, coords[i].y);
+            // Draw line path stroke
+            ctx.strokeStyle = themeColor;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(coords[0].x, coords[0].y);
+            for (let i = 1; i < coords.length; i++) {
+                ctx.lineTo(coords[i].x, coords[i].y);
+            }
+            ctx.stroke();
         }
-        ctx.stroke();
 
         // Draw points nodes
         coords.forEach(coord => {
             ctx.fillStyle = '#FFFFFF';
-            ctx.strokeStyle = '#F05C3B';
+            ctx.strokeStyle = themeColor;
             ctx.lineWidth = 2;
             
             ctx.beginPath();
@@ -1682,14 +1800,28 @@ document.addEventListener('DOMContentLoaded', () => {
         // Draw X labels names
         ctx.fillStyle = '#8E8E93';
         coords.forEach((coord, idx) => {
-            const name = last7Days[idx];
+            if (activeReportDays === 30) {
+                if (idx % 6 !== 0 && idx !== coords.length - 1) {
+                    return;
+                }
+            }
+            const name = lastDaysLabels[idx];
             ctx.textAlign = 'center';
             ctx.fillText(name, coord.x, canvas.height - 10);
         });
 
-        // Compute average Kcal
-        const avg = Math.round(dailyCalSums.reduce((s, v) => s + v, 0) / dailyCalSums.length);
-        document.getElementById('reports-avg-val').textContent = avg;
+        // Compute average & update header display
+        const avg = Math.round((dailySums.reduce((s, v) => s + v, 0) / dailySums.length) * 10) / 10;
+        
+        const chartHeaderTitleEl = document.getElementById('reports-chart-title');
+        const chartAvgValEl = document.getElementById('reports-avg-val');
+        const chartAvgUnitEl = document.querySelector('.chart-card .chart-avg');
+
+        if (chartHeaderTitleEl) chartHeaderTitleEl.textContent = metricTitle;
+        if (chartAvgValEl) chartAvgValEl.textContent = avg;
+        if (chartAvgUnitEl) {
+            chartAvgUnitEl.innerHTML = `Avg: <strong id="reports-avg-val">${avg}</strong> ${unit}`;
+        }
     }
 
     // ----------------------------------
@@ -2715,7 +2847,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         return {
             name: translateToVietnamese(apiResult.class_name),
-            confidence: Math.round(apiResult.confidence * 100),
+            confidence: Math.min(99, Math.round(apiResult.confidence * 100)),
             portion: apiResult.portion ? (typeof apiResult.portion === 'object' ? `${((apiResult.portion.estimated_weight_grams || 300) / (apiResult.portion.typical_portion_grams || 300)).toFixed(1)} portions` : `${Number(apiResult.portion).toFixed(1)} portions`) : '1.0 portion',
             calories: cal,
             protein: protein,
@@ -2734,7 +2866,7 @@ document.addEventListener('DOMContentLoaded', () => {
         progressPanelRevamp.style.display = 'none';
         resultPanelRevamp.style.display = 'block';
 
-        resultImgRevamp.src = (isAccurate && result.overlay_url) ? result.overlay_url : result.image_src;
+        resultImgRevamp.src = result.image_src;
         resultFoodNameRevamp.textContent = result.name;
         resultPortionRevamp.innerHTML = `<i class="fa-solid fa-calculator text-coral"></i> Estimated portion: <strong>${result.portion}</strong>`;
         resultConfVal.textContent = `${result.confidence}%`;
@@ -2742,7 +2874,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Setup image toggle button and interaction
         if (isAccurate && result.overlay_url) {
             imageToggleBtnRevamp.style.display = 'flex';
-            imageToggleBtnRevamp.innerHTML = `<i class="fa-solid fa-images"></i> Xem ảnh gốc`;
+            imageToggleBtnRevamp.innerHTML = `<i class="fa-solid fa-circle-nodes"></i> Xem ảnh phân tích`;
+            
+            // Set initial state to original image, hide masks overlay
+            overlayTagRevamp.style.opacity = '0.5';
+            overlayTagRevamp.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+            overlayTagRevamp.innerHTML = `<i class="fa-solid fa-eye-slash"></i> Ingredients Mask Hidden`;
             
             const toggleImageMode = () => {
                 if (resultImgRevamp.src.endsWith(result.overlay_url)) {
@@ -2974,6 +3111,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         : model.name.startsWith('gemini:')
                             ? `Gemini: ${model.name.split(':')[1].toUpperCase()}`
                             : model.name.split('/').pop().replace('.pth', '').replace('.onnx', '');
+                    if (model.name === 'eff_b0') {
+                        opt.selected = true;
+                    }
                     modelSelectRevamp.appendChild(opt);
                 });
                 convertSelectToCustom(modelSelectRevamp);
