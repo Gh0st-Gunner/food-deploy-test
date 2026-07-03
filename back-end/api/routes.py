@@ -868,3 +868,21 @@ def get_admin_stats(admin: User = Depends(get_current_admin)):
         )
     finally:
         db.close()
+
+
+@router.get("/files/{key:path}")
+def serve_file(key: str):
+    """Serve a file from local storage or S3 depending on the storage mode."""
+    from core.storage import download_bytes
+    from fastapi import Response
+    try:
+        data = download_bytes(key)
+        content_type = "application/octet-stream"
+        if key.endswith(".png"):
+            content_type = "image/png"
+        elif key.endswith(".jpg") or key.endswith(".jpeg"):
+            content_type = "image/jpeg"
+            
+        return Response(content=data, media_type=content_type)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"File not found: {e}")

@@ -2302,6 +2302,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultImgRevamp = document.getElementById('result-img-revamp');
     const overlayCanvasRevamp = document.getElementById('overlay-canvas-revamp');
     const overlayTagRevamp = document.getElementById('overlay-tag-revamp');
+    const imageToggleBtnRevamp = document.getElementById('image-toggle-btn-revamp');
     const resultFoodNameRevamp = document.getElementById('result-food-name-revamp');
     const resultPortionRevamp = document.getElementById('result-portion-revamp');
     const resultConfVal = document.getElementById('result-conf-val');
@@ -2606,6 +2607,64 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1500);
     }
 
+    const VIETNAMESE_TRANSLATIONS = {
+        // Main dishes
+        "pho": "Phở Bò",
+        "bun-bo-hue": "Bún Bò Huế",
+        "com-tam": "Cơm Tấm Sườn",
+        "banh-mi": "Bánh Mì",
+        "banh-xeo": "Bánh Xèo",
+        "goi-cuon": "Gỏi Cuốn",
+        "hu-tieu": "Hủ Tiếu",
+        "mi-quang": "Mì Quảng",
+        "banh-canh": "Bánh Canh",
+        "banh-da-cua": "Bánh Đa Cua",
+        "bun-cha": "Bún Chả",
+        "bun-rieu": "Bún Riêu",
+        
+        // Common ingredients
+        "broth": "Nước dùng",
+        "rice noodle": "Bánh phở",
+        "beef slice": "Thịt bò lát",
+        "bean sprout": "Giá đỗ",
+        "basil": "Rau thơm/Húng quế",
+        "lime": "Chanh",
+        "hoisin sauce": "Tương đen",
+        "pork": "Thịt heo",
+        "thick noodle": "Bún sợi to",
+        "shrimp": "Tôm",
+        "egg": "Trứng",
+        "carrot": "Cà rốt",
+        "cucumber": "Dưa leo",
+        "scallion": "Hành lá",
+        "onion": "Hành tây",
+        "chili": "Ớt",
+        "cilantro": "Rau mùi (ngò)",
+        "pork chop": "Sườn nướng",
+        "broken rice": "Cơm tấm",
+        "steamed egg meatloaf": "Chả trứng",
+        "pork skin": "Bì heo",
+        "fish sauce": "Nước mắm",
+        "lettuce": "Rau xà lách",
+        "tomato": "Cà chua",
+        "crab meat": "Thịt cua",
+        "tofu": "Đậu hũ",
+        "pork knuckle": "Móng giò",
+        "beef shank": "Bắp bò",
+        "pork paste": "Chả lụa/Giò sống",
+        "banana flower": "Bắp chuối bào",
+        "mint": "Rau húng lủi",
+        "peanut": "Đậu phộng",
+        "shallot": "Hành phi",
+        "pork belly": "Thịt ba chỉ",
+    };
+
+    function translateToVietnamese(key) {
+        if (!key) return "";
+        const cleanKey = key.trim().toLowerCase().replace(/_/g, '-');
+        return VIETNAMESE_TRANSLATIONS[cleanKey] || key;
+    }
+
     function translateJobResult(apiResult, imageSrc) {
         let cal = 400;
         let protein = 15;
@@ -2649,14 +2708,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 ingCal = (calPer100g * weight) / 100;
             }
             return {
-                name: ing.class_name || ing.name || ing.label,
+                name: translateToVietnamese(ing.class_name || ing.name || ing.label),
                 weight: weight,
                 calories: Math.round(ingCal)
             };
         });
-
         return {
-            name: apiResult.class_name,
+            name: translateToVietnamese(apiResult.class_name),
             confidence: Math.round(apiResult.confidence * 100),
             portion: apiResult.portion ? (typeof apiResult.portion === 'object' ? `${((apiResult.portion.estimated_weight_grams || 300) / (apiResult.portion.typical_portion_grams || 300)).toFixed(1)} portions` : `${Number(apiResult.portion).toFixed(1)} portions`) : '1.0 portion',
             calories: cal,
@@ -2681,24 +2739,40 @@ document.addEventListener('DOMContentLoaded', () => {
         resultPortionRevamp.innerHTML = `<i class="fa-solid fa-calculator text-coral"></i> Estimated portion: <strong>${result.portion}</strong>`;
         resultConfVal.textContent = `${result.confidence}%`;
 
-        // Interactive toggle on image click
+        // Setup image toggle button and interaction
         if (isAccurate && result.overlay_url) {
-            resultImgRevamp.style.cursor = 'pointer';
-            resultImgRevamp.title = 'Click to toggle original image / AI segmentations';
-            resultImgRevamp.onclick = () => {
-                if (resultImgRevamp.src === result.overlay_url) {
+            imageToggleBtnRevamp.style.display = 'flex';
+            imageToggleBtnRevamp.innerHTML = `<i class="fa-solid fa-images"></i> Xem ảnh gốc`;
+            
+            const toggleImageMode = () => {
+                if (resultImgRevamp.src.endsWith(result.overlay_url)) {
                     resultImgRevamp.src = result.image_src;
+                    imageToggleBtnRevamp.innerHTML = `<i class="fa-solid fa-circle-nodes"></i> Xem ảnh phân tích`;
                     overlayTagRevamp.style.opacity = '0.5';
                     overlayTagRevamp.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
                     overlayTagRevamp.innerHTML = `<i class="fa-solid fa-eye-slash"></i> Ingredients Mask Hidden`;
                 } else {
                     resultImgRevamp.src = result.overlay_url;
+                    imageToggleBtnRevamp.innerHTML = `<i class="fa-solid fa-images"></i> Xem ảnh gốc`;
                     overlayTagRevamp.style.opacity = '1.0';
                     overlayTagRevamp.style.backgroundColor = 'var(--coral)';
                     overlayTagRevamp.innerHTML = `<i class="fa-solid fa-circle-nodes"></i> Ingredients Mask Active`;
                 }
             };
+            
+            // Click button to toggle
+            imageToggleBtnRevamp.onclick = (e) => {
+                e.stopPropagation();
+                toggleImageMode();
+            };
+
+            // Click image itself to toggle
+            resultImgRevamp.style.cursor = 'pointer';
+            resultImgRevamp.title = 'Click to toggle original image / AI segmentations';
+            resultImgRevamp.onclick = toggleImageMode;
         } else {
+            imageToggleBtnRevamp.style.display = 'none';
+            imageToggleBtnRevamp.onclick = null;
             resultImgRevamp.style.cursor = 'default';
             resultImgRevamp.title = '';
             resultImgRevamp.onclick = null;

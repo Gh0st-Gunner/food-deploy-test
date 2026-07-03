@@ -116,15 +116,6 @@ def upload_result_image(job_id: str, image_type: str, image_bytes: bytes) -> str
 
 def get_presigned_url(key: str, expires_in: int = 3600) -> str:
     """Generate a URL for accessing the stored object."""
-    mode = _get_storage_mode()
-    if mode == "local":
-        # Return a relative API path for local dev
-        return f"/api/v1/files/{key}"
-
-    # S3 mode
-    client = _get_s3_client()
-    return client.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": settings.s3_bucket, "Key": key},
-        ExpiresIn=expires_in,
-    )
+    # Always return a relative API path so that client requests are proxied
+    # by FastAPI, resolving hostname mismatches with S3 container configurations.
+    return f"/api/v1/files/{key}"

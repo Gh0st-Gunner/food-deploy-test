@@ -198,9 +198,20 @@ def distribute_ingredient_weights(class_name: str, raw_ingredients: list, total_
             
             nutrition = detected.get("nutrition")
             if not nutrition:
+                from core.settings import get_settings
+                settings = get_settings()
+                usda_key = settings.usda_api_key
+                fatsecret_id = settings.fatsecret_client_id
+                fatsecret_secret = settings.fatsecret_client_secret
+
                 from nutrition.nutrition_provider import lookup_ingredient_nutrition
                 try:
-                    nut_res = lookup_ingredient_nutrition(label)
+                    nut_res = lookup_ingredient_nutrition(
+                        label,
+                        usda_key=usda_key,
+                        fatsecret_id=fatsecret_id,
+                        fatsecret_secret=fatsecret_secret
+                    )
                     nutrition = nut_res.get("nutrients", {}) if nut_res else {}
                 except Exception:
                     nutrition = {}
@@ -228,6 +239,25 @@ def distribute_ingredient_weights(class_name: str, raw_ingredients: list, total_
             weight_g = max(1.0, round(ratio * total_weight, 1))
             
             nutrition = ing.get("nutrition", {})
+            if not nutrition:
+                from core.settings import get_settings
+                settings = get_settings()
+                usda_key = settings.usda_api_key
+                fatsecret_id = settings.fatsecret_client_id
+                fatsecret_secret = settings.fatsecret_client_secret
+
+                from nutrition.nutrition_provider import lookup_ingredient_nutrition
+                try:
+                    nut_res = lookup_ingredient_nutrition(
+                        label,
+                        usda_key=usda_key,
+                        fatsecret_id=fatsecret_id,
+                        fatsecret_secret=fatsecret_secret
+                    )
+                    nutrition = nut_res.get("nutrients", {}) if nut_res else {}
+                except Exception:
+                    nutrition = {}
+
             calories = 0
             if nutrition:
                 cal_100g = _get_nutrient_value(nutrition, "calories") or _get_nutrient_value(nutrition, "energy")

@@ -90,8 +90,14 @@ def estimate_portion(
                         tilt_ratio = major_axis / minor_axis
                         # Cap tilt_ratio at 2.5 (about 66 degrees camera tilt) to prevent extreme scaling
                         tilt_ratio = min(max(tilt_ratio, 1.0), 2.5)
-                        fit_success = True
-                        measured_diameter_px = major_axis
+                        
+                        image_diagonal = np.sqrt(img_w**2 + img_h**2)
+                        if major_axis > 1.2 * image_diagonal or major_axis < 0.1 * max(img_w, img_h):
+                            fit_success = False
+                            print(f"Plate ellipse fitting discarded as anomaly: major_axis={major_axis:.1f}px (limit: {1.2 * image_diagonal:.1f}px)")
+                        else:
+                            fit_success = True
+                            measured_diameter_px = major_axis
         except Exception as e:
             print(f"Plate ellipse fitting failed: {e}")
 

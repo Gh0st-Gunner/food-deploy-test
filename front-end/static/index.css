@@ -1338,6 +1338,46 @@ body {
     gap: 4px;
 }
 
+.image-toggle-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #2E2E2E;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.image-toggle-btn:hover {
+    background: var(--coral);
+    color: #FFFFFF;
+    transform: translateY(-1px);
+}
+
+/* Dark mode styling */
+.dark-theme .image-toggle-btn,
+[data-theme="dark"] .image-toggle-btn {
+    background: rgba(30, 30, 30, 0.85);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #FFFFFF;
+}
+
+.dark-theme .image-toggle-btn:hover,
+[data-theme="dark"] .image-toggle-btn:hover {
+    background: var(--coral);
+}
+
 .food-info-header {
     display: flex;
     justify-content: space-between;
