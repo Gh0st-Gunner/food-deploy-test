@@ -62,7 +62,7 @@ def destroy_session(token: str):
         db.close()
 
 
-async def get_current_user(authorization: str = Header(None)) -> User:
+def get_current_user(authorization: str = Header(None)) -> User:
     """FastAPI dependency to extract and validate session token from Authorization header."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
@@ -115,7 +115,7 @@ async def get_current_user(authorization: str = Header(None)) -> User:
         db.close()
 
 
-async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
+def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
     """FastAPI dependency to verify user has administrative role."""
     if current_user.role != "admin":
         raise HTTPException(

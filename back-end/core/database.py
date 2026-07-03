@@ -209,6 +209,41 @@ def update_job(job_id: str, **kwargs) -> Optional[Job]:
                     setattr(job, key, value)
             session.commit()
             session.refresh(job)
+            
+            # Publish update to Redis Pub/Sub channel
+            try:
+                from core.cache import _get_cache_mode, get_redis
+                if _get_cache_mode() == "redis":
+                    redis_client = get_redis()
+                    job_dict = {
+                        "id": str(job.id),
+                        "status": job.status,
+                        "mode": job.mode,
+                        "image_s3_key": job.image_s3_key,
+                        "image_url": job.image_url,
+                        "class_name": job.class_name,
+                        "confidence": job.confidence,
+                        "predictions": job.predictions,
+                        "nutrition": job.nutrition,
+                        "nutrition_source": job.nutrition_source,
+                        "ingredients": job.ingredients,
+                        "overlay_s3_key": job.overlay_s3_key,
+                        "portion": job.portion,
+                        "depth_map_s3_key": job.depth_map_s3_key,
+                        "error": job.error,
+                        "models": job.models,
+                        "box_threshold": job.box_threshold,
+                        "reference_height_cm": job.reference_height_cm,
+                        "progress": job.progress,
+                        "created_at": job.created_at.isoformat() if job.created_at else None,
+                        "started_at": job.started_at.isoformat() if job.started_at else None,
+                        "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                    }
+                    import json
+                    redis_client.publish(f"job_updates:{job_id}", json.dumps(job_dict))
+            except Exception as pe:
+                print(f"Failed to publish job update to Redis: {pe}")
+                
         return job
     except Exception:
         session.rollback()

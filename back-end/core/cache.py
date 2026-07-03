@@ -77,8 +77,19 @@ def set_cached(key: str, value: dict | list, ttl: int = 3600):
     if mode == "redis":
         _redis_client.setex(key, ttl, json.dumps(value, default=str))
     else:
-        # In-memory fallback
-        _memory_cache[key] = {"value": value, "expires": time.time() + ttl}
+        # Prune expired items if cache grows too large to prevent memory leaks
+        now = time.time()
+        if len(_memory_cache) >= 1000:
+            expired_keys = [k for k, v in _memory_cache.items() if v["expires"] <= now]
+            for k in expired_keys:
+                del _memory_cache[k]
+            
+            # If still too large, evict the oldest entry (FIFO)
+            if len(_memory_cache) >= 1000:
+                oldest_key = next(iter(_memory_cache))
+                del _memory_cache[oldest_key]
+                
+        _memory_cache[key] = {"value": value, "expires": now + ttl}
 
 
 def delete_cached(key: str):

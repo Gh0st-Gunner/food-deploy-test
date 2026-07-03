@@ -66,7 +66,7 @@ def run_in_process_fallback(job_id: str, image_s3_key: str, request_models: list
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
-async def analyze(request: AnalyzeRequest, background_tasks: BackgroundTasks):
+def analyze(request: AnalyzeRequest, background_tasks: BackgroundTasks):
     """Submit an image for analysis. Returns a job_id immediately."""
     # Validate image source
     if not request.image_url and not request.image_base64:
@@ -169,7 +169,7 @@ async def analyze(request: AnalyzeRequest, background_tasks: BackgroundTasks):
 
 
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
-async def get_job_status(job_id: str):
+def get_job_status(job_id: str):
     """Poll job status and results."""
     job = get_job(job_id)
     if not job:
@@ -206,7 +206,7 @@ async def get_job_status(job_id: str):
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health():
+def health():
     """Health check for Redis, database, and model availability."""
     redis_ok = "ok"
     try:
@@ -218,7 +218,11 @@ async def health():
 
     db_ok = "ok"
     try:
-        init_db()
+        db = get_session()
+        try:
+            db.execute(text("SELECT 1"))
+        finally:
+            db.close()
     except Exception as e:
         db_ok = f"error: {e}"
 
@@ -233,7 +237,7 @@ async def health():
 
 
 @router.get("/models", response_model=list[ModelInfo])
-async def list_models():
+def list_models():
     """List available classification models."""
     registry = ModelRegistry()
     available = registry.list_classification_models()
@@ -280,7 +284,7 @@ async def list_models():
 
 
 @router.get("/explore")
-async def explore(
+def explore(
     calories: Optional[int] = None,
     protein: Optional[int] = None,
     carbs: Optional[int] = None,
@@ -305,7 +309,7 @@ async def explore(
 
 
 @router.get("/explore/generate")
-async def explore_generate(
+def explore_generate(
     ingredients: str,
     calories: Optional[int] = None,
     protein: Optional[int] = None,
@@ -328,7 +332,7 @@ async def explore_generate(
 
 
 @router.post("/explore/recommend")
-async def explore_recommend(
+def explore_recommend(
     request: RecommendRequest,
     vegan: bool = False,
     broth: bool = False,
@@ -374,57 +378,139 @@ async def websocket_jobs_stream(websocket: WebSocket, job_id: str):
 
     await websocket.accept()
 
-    last_progress = None
-    last_status = None
+    async def send_job_update(ws: WebSocket, job_obj):
+        overlay_url = get_presigned_url(job_obj.overlay_s3_key) if job_obj.overlay_s3_key else None
+        depth_map_url = get_presigned_url(job_obj.depth_map_s3_key) if job_obj.depth_map_s3_key else None
+
+        res = None
+        if job_obj.status == "completed":
+            res = {
+                "class_name": job_obj.class_name,
+                "confidence": job_obj.confidence,
+                "predictions": job_obj.predictions,
+                "nutrition": job_obj.nutrition,
+                "nutrition_source": job_obj.nutrition_source,
+                "ingredients": job_obj.ingredients,
+                "overlay_url": overlay_url,
+                "portion": job_obj.portion,
+                "depth_map_url": depth_map_url,
+            }
+
+        await ws.send_json({
+            "job_id": str(job_obj.id),
+            "status": job_obj.status,
+            "mode": job_obj.mode,
+            "created_at": job_obj.created_at.isoformat() if job_obj.created_at else None,
+            "started_at": job_obj.started_at.isoformat() if job_obj.started_at else None,
+            "completed_at": job_obj.completed_at.isoformat() if job_obj.completed_at else None,
+            "progress": job_obj.progress,
+            "result": res,
+            "error": job_obj.error,
+        })
+
+    # Check cache mode to determine if we can use Redis Pub/Sub
+    from core.cache import _get_cache_mode
+    use_redis = False
+    try:
+        if _get_cache_mode() == "redis":
+            use_redis = True
+    except Exception:
+        pass
 
     try:
-        while True:
-            job = get_job(job_id)
-            if not job:
-                await websocket.send_json({"error": "Job not found"})
-                break
+        if use_redis:
+            import redis.asyncio as aioredis
+            import json
+            from core.settings import get_settings
+            settings = get_settings()
 
-            current_progress = job.progress
-            current_status = job.status
+            r_client = aioredis.Redis(
+                host=settings.redis_host,
+                port=settings.redis_port,
+                db=settings.redis_db,
+                password=settings.redis_password or None,
+                decode_responses=True,
+            )
+            pubsub = r_client.pubsub()
+            channel_name = f"job_updates:{job_id}"
+            await pubsub.subscribe(channel_name)
 
-            # Send update if state has changed
-            if current_progress != last_progress or current_status != last_status:
-                last_progress = current_progress
-                last_status = current_status
+            try:
+                # Get the initial state and send it
+                job = get_job(job_id)
+                if not job:
+                    await websocket.send_json({"error": "Job not found"})
+                    return
 
-                result = None
-                if current_status == "completed":
-                    overlay_url = get_presigned_url(job.overlay_s3_key) if job.overlay_s3_key else None
-                    depth_map_url = get_presigned_url(job.depth_map_s3_key) if job.depth_map_s3_key else None
+                await send_job_update(websocket, job)
 
-                    result = {
-                        "class_name": job.class_name,
-                        "confidence": job.confidence,
-                        "predictions": job.predictions,
-                        "nutrition": job.nutrition,
-                        "nutrition_source": job.nutrition_source,
-                        "ingredients": job.ingredients,
-                        "overlay_url": overlay_url,
-                        "portion": job.portion,
-                        "depth_map_url": depth_map_url,
-                    }
+                if job.status in ["completed", "failed"]:
+                    return
 
-                await websocket.send_json({
-                    "job_id": str(job.id),
-                    "status": job.status,
-                    "mode": job.mode,
-                    "created_at": job.created_at.isoformat() if job.created_at else None,
-                    "started_at": job.started_at.isoformat() if job.started_at else None,
-                    "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-                    "progress": job.progress,
-                    "result": result,
-                    "error": job.error,
-                })
+                # Listen to Redis updates
+                async for message in pubsub.listen():
+                    if message["type"] == "message":
+                        data = json.loads(message["data"])
+                        
+                        overlay_s_key = data.get("overlay_s3_key")
+                        depth_s_key = data.get("depth_map_s3_key")
+                        overlay_url = get_presigned_url(overlay_s_key) if overlay_s_key else None
+                        depth_map_url = get_presigned_url(depth_s_key) if depth_s_key else None
 
-            if current_status in ["completed", "failed"]:
-                break
+                        result = None
+                        status = data.get("status")
+                        if status == "completed":
+                            result = {
+                                "class_name": data.get("class_name"),
+                                "confidence": data.get("confidence"),
+                                "predictions": data.get("predictions"),
+                                "nutrition": data.get("nutrition"),
+                                "nutrition_source": data.get("nutrition_source"),
+                                "ingredients": data.get("ingredients"),
+                                "overlay_url": overlay_url,
+                                "portion": data.get("portion"),
+                                "depth_map_url": depth_map_url,
+                            }
 
-            await asyncio.sleep(0.5)
+                        await websocket.send_json({
+                            "job_id": data.get("id"),
+                            "status": status,
+                            "mode": data.get("mode"),
+                            "created_at": data.get("created_at"),
+                            "started_at": data.get("started_at"),
+                            "completed_at": data.get("completed_at"),
+                            "progress": data.get("progress"),
+                            "result": result,
+                            "error": data.get("error"),
+                        })
+
+                        if status in ["completed", "failed"]:
+                            break
+            finally:
+                await pubsub.unsubscribe(channel_name)
+                await r_client.close()
+        else:
+            # Local in-memory polling fallback
+            last_progress = None
+            last_status = None
+            while True:
+                job = get_job(job_id)
+                if not job:
+                    await websocket.send_json({"error": "Job not found"})
+                    break
+
+                current_progress = job.progress
+                current_status = job.status
+
+                if current_progress != last_progress or current_status != last_status:
+                    last_progress = current_progress
+                    last_status = current_status
+                    await send_job_update(websocket, job)
+
+                if current_status in ["completed", "failed"]:
+                    break
+
+                await asyncio.sleep(0.5)
 
     except WebSocketDisconnect:
         # Client disconnected cleanly
@@ -439,7 +525,7 @@ async def websocket_jobs_stream(websocket: WebSocket, job_id: str):
 # --- Authentication Endpoints ---
 
 @router.post("/auth/register", response_model=UserResponse)
-async def register(request: UserRegisterRequest):
+def register(request: UserRegisterRequest):
     db = get_session()
     try:
         existing = db.query(User).filter(User.username == request.username).first()
@@ -487,7 +573,7 @@ async def register(request: UserRegisterRequest):
 
 
 @router.post("/auth/login", response_model=UserLoginResponse)
-async def login(request: UserLoginRequest):
+def login(request: UserLoginRequest):
     db = get_session()
     try:
         # Search by username OR email
@@ -512,7 +598,7 @@ async def login(request: UserLoginRequest):
 
 
 @router.post("/auth/logout")
-async def logout(authorization: str = Header(None)):
+def logout(authorization: str = Header(None)):
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         destroy_session(token)
@@ -520,7 +606,7 @@ async def logout(authorization: str = Header(None)):
 
 
 @router.post("/auth/send-verification")
-async def send_verification(
+def send_verification(
     current_user: User = Depends(get_current_user),
     redis_client: Redis = Depends(get_redis)
 ):
@@ -565,7 +651,7 @@ async def send_verification(
 
 
 @router.post("/auth/verify-email")
-async def verify_email(req: VerifyEmailRequest, current_user: User = Depends(get_current_user)):
+def verify_email(req: VerifyEmailRequest, current_user: User = Depends(get_current_user)):
     db = get_session()
     try:
         db_user = db.query(User).filter(User.id == current_user.id).first()
@@ -586,7 +672,7 @@ async def verify_email(req: VerifyEmailRequest, current_user: User = Depends(get
 
 
 @router.post("/auth/forgot-password")
-async def forgot_password(
+def forgot_password(
     req: ForgotPasswordRequest,
     redis_client: Redis = Depends(get_redis)
 ):
@@ -626,7 +712,7 @@ async def forgot_password(
 
 
 @router.post("/auth/reset-password")
-async def reset_password(req: ResetPasswordRequest):
+def reset_password(req: ResetPasswordRequest):
     db = get_session()
     try:
         db_user = db.query(User).filter(User.email == req.email).first()
@@ -651,7 +737,7 @@ async def reset_password(req: ResetPasswordRequest):
 # --- Admin User Management Endpoints ---
 
 @router.get("/admin/users", response_model=list[UserResponse])
-async def list_users(admin: User = Depends(get_current_admin)):
+def list_users(admin: User = Depends(get_current_admin)):
     db = get_session()
     try:
         users = db.query(User).order_by(User.created_at.desc()).all()
@@ -661,7 +747,7 @@ async def list_users(admin: User = Depends(get_current_admin)):
 
 
 @router.post("/admin/users", response_model=UserResponse)
-async def create_user(request: UserCreateRequest, admin: User = Depends(get_current_admin)):
+def create_user(request: UserCreateRequest, admin: User = Depends(get_current_admin)):
     db = get_session()
     try:
         existing = db.query(User).filter(User.username == request.username).first()
@@ -684,7 +770,7 @@ async def create_user(request: UserCreateRequest, admin: User = Depends(get_curr
 
 
 @router.put("/admin/users/{user_id}", response_model=UserResponse)
-async def update_user(user_id: str, request: UserUpdateRequest, admin: User = Depends(get_current_admin)):
+def update_user(user_id: str, request: UserUpdateRequest, admin: User = Depends(get_current_admin)):
     db = get_session()
     try:
         user = db.query(User).filter(User.id == user_id).first()
@@ -717,7 +803,7 @@ async def update_user(user_id: str, request: UserUpdateRequest, admin: User = De
 
 
 @router.delete("/admin/users/{user_id}")
-async def delete_user(user_id: str, admin: User = Depends(get_current_admin)):
+def delete_user(user_id: str, admin: User = Depends(get_current_admin)):
     db = get_session()
     try:
         user = db.query(User).filter(User.id == user_id).first()
@@ -736,7 +822,7 @@ async def delete_user(user_id: str, admin: User = Depends(get_current_admin)):
 
 
 @router.post("/admin/users/{user_id}/toggle-status", response_model=UserResponse)
-async def toggle_user_status(user_id: str, admin: User = Depends(get_current_admin)):
+def toggle_user_status(user_id: str, admin: User = Depends(get_current_admin)):
     db = get_session()
     try:
         user = db.query(User).filter(User.id == user_id).first()
@@ -758,7 +844,7 @@ async def toggle_user_status(user_id: str, admin: User = Depends(get_current_adm
 
 
 @router.get("/admin/stats", response_model=AdminStatsResponse)
-async def get_admin_stats(admin: User = Depends(get_current_admin)):
+def get_admin_stats(admin: User = Depends(get_current_admin)):
     db = get_session()
     try:
         total_users = db.query(User).count()
