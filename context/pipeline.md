@@ -29,7 +29,7 @@ sequenceDiagram
     Det->>Det: 2. SAM 2 tạo mặt nạ phân vùng (Segment Mask)
     Det->>Port: Chuyển thông tin bounding box & mask sang Portion Task
     Port->>Port: 3. Khớp Ellipse đĩa ăn để sửa góc nghiêng và tính tỷ lệ (cm/px)
-    Port->>Port: 4. Depth Anything V2 tính bản đồ chiều sâu & suy ra chiều cao
+    Port->>Port: 4. ZoeDepth tính bản đồ chiều sâu & suy ra chiều cao
     Port->>Port: 5. Tính tích phân diện tích x chiều cao để ra thể tích (ml) và khối lượng (g)
     Port->>Nut: Chuyển danh sách nguyên liệu và khối lượng sang Nutrition Task
     Nut->>Redis: Check Cache thông tin dinh dưỡng nguyên liệu
@@ -86,7 +86,7 @@ c:/Users/Home/Desktop/vn food/
     Diện tích thức ăn hiệu chỉnh thực tế là:
     $$Area_{cm^2} = FoodPixels \times Scale_{cm/px}^2 \times tilt\_ratio$$
 *   **Tính toán Chiều cao 3D bằng Depth Map**:
-    Lấy giá trị chiều sâu tương đối từ `Depth Anything V2`. Thuật toán thực hiện xói mòn hình thái học (`cv2.erode`) trên mặt nạ thức ăn để tìm vùng ranh giới đĩa tiếp xúc mặt bàn. Đo giá trị độ sâu trung vị (median depth) tại biên làm mốc đĩa (`base_depth`).
+    Lấy giá trị chiều sâu tương đối từ `ZoeDepth`. Thuật toán thực hiện xói mòn hình thái học (`cv2.erode`) trên mặt nạ thức ăn để tìm vùng ranh giới đĩa tiếp xúc mặt bàn. Đo giá trị độ sâu trung vị (median depth) tại biên làm mốc đĩa (`base_depth`).
     Chiều cao vật lý của thức ăn tại mỗi pixel được suy ra bằng cách so sánh độ sâu thực tế của thức ăn với mốc đĩa. Thể tích thực tế được tính bằng tích phân diện tích nhân chiều cao:
     $$Volume_{ml} = Area_{cm^2} \times Height_{cm}$$
     Khối lượng thức ăn (gram) = Thể tích (ml) $\times$ Mật độ khối lượng điển hình của món ăn đó (g/ml).

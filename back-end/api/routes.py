@@ -255,35 +255,8 @@ def list_models():
         for name, path in available.items()
     ]
     
-    # Always include Google Gemini option
-    models.append(ModelInfo(name="gemini:gemini-1.5-flash", path="cloud", type="gemini"))
-    
-    # Dynamically query local Ollama instance for pulled models
-    import requests
-    from core.settings import get_settings
-    settings = get_settings()
-    
-    try:
-        ollama_url = settings.ollama_host
-        if "localhost" in ollama_url or "127.0.0.1" in ollama_url:
-            ollama_url = ollama_url.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal")
-            
-        r = requests.get(f"{ollama_url}/api/tags", timeout=1.0)
-        if r.status_code == 200:
-            ollama_data = r.json()
-            local_models = ollama_data.get("models", [])
-            for m in local_models:
-                m_name = m.get("name", "")
-                if m_name:
-                    models.append(ModelInfo(name=f"ollama:{m_name}", path="local", type="ollama"))
-    except Exception as e:
-        print(f"Could not reach Ollama at {settings.ollama_host} to list tags: {e}")
-        
-    # Fallback to templates if Ollama is empty/offline
-    if not any(m.name.startswith("ollama:") for m in models):
-        models.append(ModelInfo(name="ollama:llava", path="local", type="ollama"))
-        models.append(ModelInfo(name="ollama:llava-phi3", path="local", type="ollama"))
-        models.append(ModelInfo(name="ollama:bakllava", path="local", type="ollama"))
+    # Expose local models only
+    pass
         
     return models
 

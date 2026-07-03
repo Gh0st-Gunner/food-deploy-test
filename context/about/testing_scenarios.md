@@ -13,6 +13,11 @@ Tài liệu này đóng vai trò là cẩm nang kiểm thử thủ công và QA 
     2.  Kiểm tra dịch vụ Cloudflare Tunnel và khởi chạy một tunnel người dùng dưới nền (background user-space tunnel) nếu dịch vụ hệ thống chưa chạy.
     3.  Tự động kích hoạt toàn bộ các container dịch vụ bằng lệnh `docker compose up -d`.
     4.  Mở cổng dịch vụ giao diện chính tại địa chỉ: `http://localhost:10800` (hoặc tên miền ngoài `https://munchin.thegunner.uk`).
+*   **Tải dữ liệu hình ảnh kiểm thử mẫu:** Bạn có thể tự động tải về 20 tệp ảnh món ăn truyền thống Việt Nam phục vụ việc kiểm thử bằng cách chạy lệnh:
+    ```bash
+    python scripts/download_test_images.py
+    ```
+    Các ảnh tải xuống sẽ được lưu vào thư mục `test-image/` (ví dụ: `banh-mi.jpg`, `pho.jpg`, `bun-bo-hue.jpg`...).
 *   **Tắt hệ thống:** Nhấp đúp chuột vào tệp tin **[stop.bat](file:///c:/Users/Home/Desktop/vn%20food/stop.bat)** để dọn dẹp và tắt toàn bộ container chạy ẩn.
 
 ---
@@ -63,12 +68,13 @@ Tài liệu này đóng vai trò là cẩm nang kiểm thử thủ công và QA 
 
 ### Nhóm B: Bảng Điều Khiển & Nhật Ký Bữa Ăn (Dashboard & Meals Diary)
 
-#### TC-06: Vòng tròn Calorie Mục Tiêu & Cập nhật Macros
+#### TC-06: Báo cáo dinh dưỡng, tiến trình & Bộ lọc thời gian biểu đồ
 *   **Các bước thực hiện:**
-    1.  Xem lượng Calorie mục tiêu trên Dashboard ngay sau khi đăng ký (dựa trên khảo sát ban đầu).
-    2.  Thay đổi thông tin chiều cao/cân nặng hoặc mục tiêu sức khỏe (ví dụ: chuyển từ Giảm cân sang Tăng cân).
-    3.  Quay lại kiểm tra Calorie mục tiêu và thanh tiến trình Macronutrients.
-*   **Kết quả mong đợi:** Lượng calo mục tiêu tăng thêm tương ứng ($\approx$ tăng thêm 900 kcal khi đổi từ Giảm cân sang Tăng cân). Biểu đồ vòng cung SVG cập nhật đúng tỷ lệ.
+    1.  Xem lượng Calorie mục tiêu trên Dashboard và biểu đồ báo cáo tiến trình (ở thẻ Weekly Calorie Intake).
+    2.  Nhấp vào ô chọn thời gian (mặc định 7 ngày) trên biểu đồ để thay đổi khoảng thời gian lọc (1 ngày, 3 ngày, 7 ngày, 30 ngày).
+    3.  Nhấp vào các chỉ số dinh dưỡng/sức khỏe khác nhau trên Dashboard (như Calo nạp vào, Cân nặng, Macros, Active Burn) để xem biểu đồ đổi màu chủ đề và hiển thị dữ liệu lịch sử/trung bình tương ứng.
+    4.  Thay đổi thông tin chiều cao/cân nặng hoặc mục tiêu sức khỏe (ví dụ: chuyển từ Giảm cân sang Tăng cân).
+*   **Kết quả mong đợi:** Lượng calo mục tiêu tăng thêm tương ứng ($\approx$ tăng thêm 900 kcal khi đổi từ Giảm cân sang Tăng cân). Biểu đồ vẽ đúng tỉ lệ dữ liệu, đổi màu sắc chủ đề tương ứng với chỉ số được chọn (ví dụ: Màu đỏ cam cho Calories, Xanh lá cho Carbs, Xanh dương cho Weight) và cập nhật số liệu trung bình (Avg) chính xác theo khoảng thời gian được lọc.
 
 #### TC-07: Thêm món ăn thủ công vào nhật ký
 *   **Các bước thực hiện:**
@@ -88,18 +94,20 @@ Tài liệu này đóng vai trò là cẩm nang kiểm thử thủ công và QA 
 #### TC-09: Quét ảnh món ăn chế độ nhanh (Fast Mode)
 *   **Các bước thực hiện:**
     1.  Truy cập tab Scan (biểu tượng Camera).
-    2.  Tải lên một hình ảnh đĩa thức ăn (ví dụ: Bát phở bò).
+    2.  Tải lên một hình ảnh đĩa thức ăn từ thư mục `test-image/` (ví dụ: `banh-mi.jpg`).
     3.  Chọn chế độ quét **Fast Mode**.
-    4.  Nhấp chọn "Start Analysis".
+    4.  Kiểm tra danh sách mô hình phân loại (mô hình mặc định được chọn sẵn là `eff_b0`).
+    5.  Nhấp chọn "Start Analysis".
 *   **Kết quả mong đợi:** Thời gian phản hồi nhanh chóng (dưới 3 giây) do hệ thống chỉ chạy mô hình phân loại (ONNX/PyTorch) mà không kích hoạt các mô hình phân đoạn và chiều sâu 3D. Kết quả hiển thị tên món ăn chính xác.
 
 #### TC-10: Quét ảnh chế độ chính xác (Accurate Mode - 3D)
 *   **Các bước thực hiện:**
-    1.  Tải lên hình ảnh món ăn (ví dụ: Đĩa cơm tấm sườn nướng).
+    1.  Tải lên hình ảnh món ăn từ thư mục `test-image/` (ví dụ: `com-tam.jpg`).
     2.  Chọn chế độ quét **Accurate Mode** và nhập đường kính đĩa ăn tham chiếu (mặc định 25cm).
     3.  Nhấp chọn "Start Analysis".
-    4.  Theo dõi logs của container `worker-detection` để xác nhận các mô hình DINO, SAM 2 và Depth Anything V2 hoạt động.
-*   **Kết quả mong đợi:** Hệ thống phản hồi thành công sau 5-8 giây. Trả về kết quả phân tích: Nhận diện bát/đĩa cơm tấm, bóc tách các nguyên liệu (thịt heo, cơm, rau củ...), xuất ảnh overlay có vẽ viền màu quanh nguyên liệu, bản đồ chiều sâu 3D và khối lượng chi tiết từng thành phần.
+    4.  Theo dõi logs của container `worker-detection` để xác nhận các mô hình DINO, SAM 2 và ZoeDepth hoạt động.
+    5.  Khi kết quả hiển thị, nhấp vào nút "Xem ảnh phân tích" để bật hiển thị các mặt nạ nguyên liệu (SAM 2 mask overlay) vẽ đè lên ảnh. Nhấp lại lần nữa ("Xem ảnh gốc") để ẩn mặt nạ đi.
+*   **Kết quả mong đợi:** Hệ thống phản hồi thành công sau 5-8 giây. Trả về kết quả phân tích: Nhận diện bát/đĩa cơm tấm, bóc tách các nguyên liệu (thịt heo, cơm, rau củ...), hiển thị ảnh gốc ban đầu với thông tin mặt nạ ẩn, cho phép bật/tắt hiển thị ảnh overlay vẽ viền màu quanh nguyên liệu, dựng bản đồ chiều sâu 3D và tính toán khối lượng chi tiết từng thành phần.
 
 #### TC-11: Hiệu chỉnh góc nghiêng camera (Tilt Correction)
 *   **Các bước thực hiện:**

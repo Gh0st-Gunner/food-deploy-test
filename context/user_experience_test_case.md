@@ -34,7 +34,7 @@ Sau khi thực hiện xong kiểm thử, nhấp đúp vào tệp tin **[stop.bat
 
 | ID | Tính năng kiểm thử | Các bước thực hiện | Kết quả mong đợi |
 | :--- | :--- | :--- | :--- |
-| **TC-06** | Calorie Target & Progress Ring | 1. Kiểm tra chỉ số calo mục tiêu hiển thị trên Dashboard.<br>2. Thay đổi mục tiêu sức khỏe trong Onboarding (Tăng cân/Giảm cân) và kiểm tra lại Calo mục tiêu. | Lượng calo mục tiêu thay đổi chính xác tương ứng với mục tiêu (Tăng cân $\approx$ +400kcal, Giảm cân $\approx$ -500kcal). Vòng tròn tiến trình SVG vẽ đúng tỉ lệ. |
+| **TC-06** | Calorie Target & Chart | 1. Kiểm tra chỉ số calo mục tiêu hiển thị trên Dashboard.<br>2. Chọn bộ lọc thời gian biểu đồ tuần/tháng (1, 3, 7, 30 ngày) và nhấp chọn các chỉ số (Calories, Weight, Macros, Active Burn) để xem biểu đồ thay đổi.<br>3. Thay đổi mục tiêu sức khỏe trong Onboarding (Tăng cân/Giảm cân) và kiểm tra lại Calo mục tiêu. | Lượng calo mục tiêu thay đổi chính xác tương ứng với mục tiêu (Tăng cân $\approx$ +400kcal, Giảm cân $\approx$ -500kcal). Biểu đồ và thông số cập nhật tương ứng với khoảng thời gian và chỉ số đã chọn. |
 | **TC-07** | Thêm món ăn thủ công | 1. Trên Dashboard, nhấp biểu tượng dấu cộng (+) tại nhóm bữa ăn.<br>2. Chọn món ăn và khối lượng.<br>3. Nhấp Thêm. | Món ăn hiển thị trong danh mục bữa ăn. Thanh tiến trình Calo và Carbs/Protein/Fat tự động cập nhật tăng lên tương ứng. |
 | **TC-08** | Xóa món ăn khỏi nhật ký | 1. Nhấp nút xóa (biểu tượng thùng rác/dấu trừ) cạnh món ăn trong danh sách bữa ăn. | Món ăn biến mất khỏi danh sách. Chỉ số calo và dinh dưỡng trên Dashboard tự động giảm trừ ngay lập tức. |
 
@@ -44,8 +44,8 @@ Sau khi thực hiện xong kiểm thử, nhấp đúp vào tệp tin **[stop.bat
 
 | ID | Tính năng kiểm thử | Các bước thực hiện | Kết quả mong đợi |
 | :--- | :--- | :--- | :--- |
-| **TC-09** | Quét ảnh món ăn chế độ Fast | 1. Truy cập tab Scan (biểu tượng camera ở giữa thanh điều hướng).<br>2. Tải lên một hình ảnh đĩa thức ăn (ví dụ: đĩa cơm tấm thịt sườn).<br>3. Chọn chế độ "Fast Mode".<br>4. Ấn "Start Analysis". | API khởi động tác vụ bất đồng bộ. Kết quả trả về tên món ăn nhanh chóng nhờ mô hình ONNX/PyTorch tối ưu phân loại. |
-| **TC-10** | Quét ảnh chế độ Accurate (3D) | 1. Tải lên hình ảnh thức ăn.<br>2. Chọn chế độ "Accurate Mode" và điền đường kính đĩa chuẩn (mặc định 25cm).<br>3. Ấn "Start Analysis" và theo dõi tiến trình logs của container `worker-detection`. | Celery worker chạy thành công Grounding DINO, cắt phân vùng SAM 2, dựng bản đồ chiều sâu GPU Depth Anything V2 và ước lượng thể tích đĩa ăn. Kết quả trả về khối lượng (g) chi tiết. |
+| **TC-09** | Quét ảnh món ăn chế độ Fast | 1. Truy cập tab Scan (biểu tượng camera ở giữa thanh điều hướng).<br>2. Tải lên một hình ảnh đĩa thức ăn (ví dụ: đĩa cơm tấm thịt sườn).<br>3. Chọn chế độ "Fast Mode".<br>4. Ấn "Start Analysis". | API khởi động tác vụ bất đồng bộ. Kết quả trả về tên món ăn nhanh chóng nhờ mô hình ONNX/PyTorch tối ưu phân loại (mô hình mặc định `eff_b0`). |
+| **TC-10** | Quét ảnh chế độ Accurate (3D) | 1. Tải lên hình ảnh thức ăn.<br>2. Chọn chế độ "Accurate Mode" và điền đường kính đĩa chuẩn (mặc định 25cm).<br>3. Ấn "Start Analysis".<br>4. Khi có kết quả, nhấp nút "Xem ảnh phân tích" để bật/tắt hiển thị mặt nạ phân vùng nguyên liệu (mặc định ban đầu ẩn). | Celery worker chạy thành công Grounding DINO, cắt phân vùng SAM 2, dựng bản đồ chiều sâu GPU ZoeDepth và ước lượng thể tích đĩa ăn. Kết quả hiển thị ảnh gốc, cho phép bật/tắt xem mặt nạ nguyên liệu chính xác cùng khối lượng (g) chi tiết. |
 | **TC-11** | Hiệu chỉnh góc nghiêng (Tilt) | 1. Tải lên ảnh chụp đĩa thức ăn ở góc nghiêng lớn (~45 độ).<br>2. Chạy quét ở chế độ Accurate. | OpenCV khớp thành công Ellipse đĩa ăn. Trục lớn và trục nhỏ khớp tỉ lệ góc nghiêng chính xác, hiệu chỉnh diện tích thức ăn để không bị sai lệch khối lượng thực tế. |
 
 ---

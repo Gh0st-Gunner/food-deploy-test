@@ -24,7 +24,7 @@ Munchin' là một ứng dụng Web toàn diện hỗ trợ người dùng theo 
 *   **Nhận diện & Bóc tách (Classification & Detection)**: Nhận diện tên món ăn Việt Nam và bóc tách các thành phần nguyên liệu cấu thành (ví dụ: bún, thịt bò, rau thơm trong bát Bún bò Huế).
 *   **Ước lượng khẩu phần 3D (Portion Sizing)**:
     *   *Plate Ellipse Fitting*: Phát hiện hình dạng đĩa/bát để hiệu chỉnh góc nghiêng camera và tính toán tỉ lệ pixel-sang-cm.
-    *   *Depth Anything V2*: Dựng bản đồ chiều sâu 3D của đĩa thức ăn, tính toán độ cao vật lý của từng thành phần và tích hợp thể tích ($Volume = Area \times Height$) để suy ra khối lượng (gam).
+    *   *ZoeDepth*: Dựng bản đồ chiều sâu 3D của đĩa thức ăn, tính toán độ cao vật lý của từng thành phần và tích hợp thể tích ($Volume = Area \times Height$) để suy ra khối lượng (gam).
 *   **Tra cứu Dinh dưỡng tự động**: Kết nối với API USDA và FatSecret để quy đổi khối lượng món ăn thành chỉ số calo và dinh dưỡng chính xác nhất.
 
 ### E. Gợi ý Thực đơn & Khám phá Công thức (Explore & Recommendation)
@@ -51,8 +51,8 @@ Munchin' là một ứng dụng Web toàn diện hỗ trợ người dùng theo 
 *   **PyTorch & Torchvision**: Thư viện nền tảng chạy suy diễn mô hình AI.
 *   **Grounding DINO**: Phát hiện vật thể dạng Zero-shot để bóc tách nguyên liệu từ văn bản đầu vào.
 *   **SAM 2 (Segment Anything Model 2)**: Cắt phân vùng (segmentation) chính xác các thành phần món ăn theo tọa độ hộp giới hạn (bounding box).
-*   **Depth Anything V2**: Mô hình ước lượng chiều sâu đơn ảnh (monocular depth estimation) để xây dựng mô hình 3D cho khẩu phần ăn.
+*   **ZoeDepth**: Mô hình ước lượng chiều sâu đơn ảnh kết hợp đo khoảng cách vật lý (metric depth estimation) để xây dựng mô hình 3D cho khẩu phần ăn.
 
 ### Frontend Client
 *   **Vanilla HTML5 & CSS3**: Xây dựng giao diện Responsive, hiệu ứng Glassmorphic hiện đại, thiết kế tối giản, tông màu tối/sáng hài hòa.
-*   **Vanilla JavaScript (ES6)**: Xử lý tương tác SPA (Single Page Application), biểu đồ tiến trình dạng SVG, kết nối Websocket theo dõi tiến trình AI.
+*   **Vanilla JavaScript (ES6)**: Xử lý tương tác SPA (Single Page Application), biểu đồ báo cáo tiến trình (Calories, Weight, Macros, Active Burn) tích hợp bộ lọc thời gian động (1, 3, 7, 30 ngày), hỗ trợ cơ chế bật/tắt mặt nạ nguyên liệu phân tích AI (mặc định ẩn khi tải trang kết quả), kết nối Websocket theo dõi tiến trình AI.

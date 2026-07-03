@@ -16,9 +16,9 @@ Hệ thống kết hợp ba mô hình học sâu chuyên biệt trong lĩnh vự
 *   **Mục tiêu:** Cắt phân vùng đối tượng (Instance Segmentation) ở cấp độ pixel để xác định diện tích bề mặt chính xác của từng nguyên liệu.
 *   **Cơ chế hoạt động:** SAM 2 là mô hình phân đoạn nền tảng (Foundation Model). Hệ thống sử dụng kết quả hộp giới hạn từ Grounding DINO làm gợi ý đầu vào (bounding box prompts) cho SAM 2. SAM 2 sẽ sinh ra các mặt nạ nhị phân (binary mask) bao quanh chính xác biên dạng của từng loại thức ăn.
 
-### C. Depth Anything V2 (Monocular Depth Estimation)
-*   **Mục tiêu:** Dựng bản đồ chiều sâu (Depth Map) từ một bức ảnh 2D duy nhất để thu thập thông tin chiều cao 3D của khối thức ăn.
-*   **Cơ chế hoạt động:** Depth Anything V2 phân tích các chi tiết đổ bóng, phối cảnh và tiêu cự trong ảnh để dự đoán khoảng cách tương đối của từng pixel so với camera. Bản đồ chiều sâu trả về là một ma trận 2D chứa các giá trị chuẩn hóa $[0.0, 1.0]$, trong đó giá trị lớn hơn tương ứng với các đối tượng nằm gần camera hơn (nhô cao hơn).
+### C. ZoeDepth (Metric Depth Estimation)
+*   **Mục tiêu:** Dựng bản đồ chiều sâu mét (Physical/Metric Depth Map) từ một bức ảnh 2D duy nhất để thu thập thông tin chiều cao 3D của khối thức ăn.
+*   **Cơ chế hoạt động:** ZoeDepth kết hợp giữa kiến trúc transformer của bộ mã hóa độ sâu tương đối (relative depth encoder) và bộ giải mã chia nhóm khoảng cách mét (metric depth bins decoder) để ước tính chính xác khoảng cách vật lý của từng pixel so với camera. Bản đồ chiều sâu thô trả về chứa các giá trị khoảng cách tuyệt đối. Hệ thống thực hiện chuẩn hóa tuyến tính ma trận này về khoảng $[0.0, 1.0]$ làm độ sâu tương đối phục vụ cho bước tính toán chiều cao vật lý sau đó.
 
 ---
 

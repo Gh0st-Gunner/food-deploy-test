@@ -17,7 +17,7 @@ Các thành phần hệ thống bao gồm:
     *   Đóng vai trò kênh Pub/Sub truyền tin nhắn cập nhật tiến trình phân tích.
 5.  **Celery Workers (Mạng lưới xử lý bất đồng bộ):**
     *   *Worker Classification:* Phân loại tên món ăn (chạy CPU).
-    *   *Worker Detection:* Chạy Grounding DINO + SAM 2 + Depth Anything V2 (chạy GPU/CUDA).
+    *   *Worker Detection:* Chạy Grounding DINO + SAM 2 + ZoeDepth (chạy GPU/CUDA).
     *   *Worker Nutrition:* Tra cứu API dinh dưỡng bên ngoài (chạy CPU/Network).
     *   *Worker Default:* Thực hiện gom kết quả (Aggregation) và các tác vụ nhẹ khác.
 6.  **MinIO Object Storage (S3-compatible):** Lưu trữ hình ảnh người dùng tải lên, ảnh mặt nạ phân đoạn trung gian, ảnh vẽ đè overlay và bản đồ chiều sâu.
@@ -38,7 +38,7 @@ Redis lưu trữ thông tin dinh dưỡng tạm thời của nguyên liệu và 
 ### C. Phân Vùng Hàng Đợi Celery (Worker Task Routing)
 Mỗi worker Celery được cấu hình để lắng nghe trên các hàng đợi (queues) cụ thể, tối ưu hóa việc phân phối phần cứng:
 *   `queue="classification"`: Định tuyến về CPU worker để chạy mô hình phân loại nhỏ hoặc gọi API đám mây (Gemini/Ollama).
-*   `queue="detection"`: Định tuyến về GPU worker có liên kết CUDA để xử lý các mô hình thị giác máy tính rất nặng (SAM 2, DINO, Depth Anything).
+*   `queue="detection"`: Định tuyến về GPU worker có liên kết CUDA để xử lý các mô hình thị giác máy tính rất nặng (SAM 2, DINO, ZoeDepth).
 *   `queue="nutrition"`: Định tuyến về CPU worker để xử lý các truy vấn mạng HTTP đến API USDA hoặc FatSecret.
 *   `queue="default"`: Định tuyến về CPU worker để thực hiện việc tổng hợp dữ liệu cuối cùng.
 

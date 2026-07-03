@@ -39,3 +39,5 @@ venv/
 
 # Database
 *.db
+*.docx
+*.pptx
