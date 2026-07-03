@@ -20,6 +20,25 @@ def detect_ingredients(
     if not prompts:
         return []
 
+    orig_w, orig_h = image.size
+
+    # --- VRAM Guard: Downscale image if either dimension exceeds 1024px ---
+    MAX_SIZE = 1024
+    if orig_w > MAX_SIZE or orig_h > MAX_SIZE:
+        if orig_w > orig_h:
+            new_w = MAX_SIZE
+            new_h = int(orig_h * (MAX_SIZE / orig_w))
+        else:
+            new_h = MAX_SIZE
+            new_w = int(orig_w * (MAX_SIZE / orig_h))
+            
+        try:
+            resample_filter = Image.Resampling.BILINEAR
+        except AttributeError:
+            resample_filter = Image.BILINEAR
+            
+        image = image.resize((new_w, new_h), resample_filter)
+
     # Grounding DINO: detect bounding boxes from text prompts
     text_input = " ".join(prompts)
     inputs = grounding_processor(
@@ -52,46 +71,45 @@ def detect_ingredients(
 
     # SAM 2: segment all detected boxes in batch
     # Format input_boxes as [1, num_boxes, 4] for batch processing
-    all_boxes = torch.tensor(boxes, dtype=torch.float32).unsqueeze(0)  # [1, N, 4]
+    formatted_boxes = [[[float(b) for b in box] for box in boxes]]
 
     sam_inputs = sam_processor(
         images=image,
-        input_boxes=[[b] for b in boxes],
+        input_boxes=formatted_boxes,
         return_tensors="pt",
     ).to(sam_model.device)
 
-    orig_w, orig_h = image.size
+    with torch.no_grad():
+        sam_outputs = sam_model(**sam_inputs, multimask_output=False)
+
+    # sam_outputs.pred_masks has shape [1, num_boxes, 1, H_model, W_model]
+    pred_masks = sam_outputs.pred_masks.cpu()
 
     detected_ingredients = []
+    scale_x = orig_w / image.size[0]
+    scale_y = orig_h / image.size[1]
 
     for i, (box, score, label) in enumerate(zip(boxes, scores, labels)):
-        # Process one box at a time to avoid batch issues
-        single_box = torch.tensor([[box]], dtype=torch.float32)
+        # Extract the mask for the i-th box
+        mask_tensor = pred_masks[0, i, 0]  # shape [H_model, W_model]
 
-        single_inputs = sam_processor(
-            images=image,
-            input_boxes=[[[float(b) for b in box]]],
-            return_tensors="pt",
-        ).to(sam_model.device)
-
-        with torch.no_grad():
-            single_outputs = sam_model(**single_inputs, multimask_output=False)
-
-        # Manually resize mask to original image size
-        pred_mask = single_outputs.pred_masks.cpu().squeeze()  # [H, W] or [1, H, W]
-
-        if pred_mask.ndim == 3:
-            pred_mask = pred_mask[0]
-
-        # Resize mask to original image size using PIL
-        mask_pil = Image.fromarray((pred_mask.numpy() * 255).astype(np.uint8))
+        # Convert to PIL and resize to original image resolution
+        mask_pil = Image.fromarray((mask_tensor.numpy() * 255).astype(np.uint8))
         mask_pil = mask_pil.resize((orig_w, orig_h), Image.NEAREST)
         mask_array = np.array(mask_pil) > 128  # binary mask at original resolution
+
+        # Scale bounding box back to original resolution coordinates
+        orig_box = [
+            box[0] * scale_x,
+            box[1] * scale_y,
+            box[2] * scale_x,
+            box[3] * scale_y
+        ]
 
         detected_ingredients.append({
             "label": str(label),
             "confidence": float(score),
-            "bbox": [float(b) for b in box],
+            "bbox": orig_box,
             "mask": mask_array,
             "mask_pixel_count": int(mask_array.sum()),
         })

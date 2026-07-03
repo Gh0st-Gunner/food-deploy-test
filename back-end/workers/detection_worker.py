@@ -15,13 +15,6 @@ registry = ModelRegistry()
 
 def _serialize_ingredients(ingredients):
     """Serialize ingredient results for JSON storage (masks -> S3 keys)."""
-    from nutrition.nutrition_provider import lookup_ingredient_nutrition
-    from core.settings import get_settings
-    settings = get_settings()
-    usda_key = settings.usda_api_key
-    fatsecret_id = settings.fatsecret_client_id
-    fatsecret_secret = settings.fatsecret_client_secret
-
     serialized = []
     for ing in ingredients:
         label = ing.get("label", "").rstrip(".")
@@ -30,20 +23,8 @@ def _serialize_ingredients(ingredients):
             "confidence": ing.get("confidence", 0),
             "bbox": ing.get("bbox", []),
             "mask_pixel_count": ing.get("mask_pixel_count", 0),
+            "nutrition": {},  # Will be populated by CPU aggregator task or on-demand cache
         }
-        
-        # Query nutrition for this ingredient
-        try:
-            nut_res = lookup_ingredient_nutrition(
-                label,
-                usda_key=usda_key,
-                fatsecret_id=fatsecret_id,
-                fatsecret_secret=fatsecret_secret
-            )
-            if nut_res and "nutrients" in nut_res:
-                entry["nutrition"] = nut_res["nutrients"]
-        except Exception as e:
-            print(f"Failed to lookup ingredient nutrition for {label}: {e}")
 
         # Masks are numpy arrays — we compute area stats but don't store the raw mask in JSON
         mask = ing.get("mask")
@@ -90,6 +71,24 @@ def detect_ingredients_task(self, job_id: str, class_name: str, image_s3_key: st
 
     serialized = _serialize_ingredients(ingredient_results)
 
+    # 1. Compute and upload combined mask (union of all ingredient masks) to S3
+    combined_mask_s3_key = None
+    if ingredient_results:
+        first_mask = ingredient_results[0].get("mask")
+        if first_mask is not None:
+            combined_mask = np.zeros(first_mask.shape, dtype=bool)
+            for ing in ingredient_results:
+                m = ing.get("mask")
+                if m is not None:
+                    combined_mask = combined_mask | m
+            
+            if np.sum(combined_mask) > 0:
+                mask_uint8 = (combined_mask.astype(np.uint8)) * 255
+                mask_image = Image.fromarray(mask_uint8)
+                buf = io.BytesIO()
+                mask_image.save(buf, format="PNG")
+                combined_mask_s3_key = upload_result_image(job_id, "combined_mask", buf.getvalue())
+
     # Generate and upload overlay image
     overlay_s3_key = None
     if ingredient_results:
@@ -108,6 +107,7 @@ def detect_ingredients_task(self, job_id: str, class_name: str, image_s3_key: st
     return {
         "ingredients": serialized,
         "overlay_s3_key": overlay_s3_key,
+        "combined_mask_s3_key": combined_mask_s3_key,
         "ingredient_count": len(ingredient_results),
     }
 

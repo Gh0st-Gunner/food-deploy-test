@@ -129,7 +129,7 @@ def analyze(request: AnalyzeRequest, background_tasks: BackgroundTasks):
     else:
         # Try to dispatch Celery task; if broker is down, fall back to in-process background task
         try:
-            from celery import chain
+            from celery import chain, group, chord
             from workers.celery_app import configure_celery
             from workers.classification_worker import classify_food
             from workers.nutrition_worker import lookup_nutrition_task
@@ -139,12 +139,17 @@ def analyze(request: AnalyzeRequest, background_tasks: BackgroundTasks):
 
             configure_celery()
 
+            header = group([
+                lookup_nutrition_task.si(job_id),
+                chain(
+                    detect_ingredients_task.si(job_id, None, image_s3_key, params),
+                    estimate_portion_task.si(job_id, None, image_s3_key, None, params)
+                )
+            ])
+
             workflow = chain(
                 classify_food.si(job_id, image_s3_key, request.models),
-                lookup_nutrition_task.si(job_id),
-                detect_ingredients_task.si(job_id, None, image_s3_key, params),
-                estimate_portion_task.si(job_id, None, image_s3_key, None, params),
-                aggregate_results.si(job_id),
+                chord(header, aggregate_results.si(job_id))
             )
 
             workflow.apply_async()

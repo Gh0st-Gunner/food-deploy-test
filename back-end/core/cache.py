@@ -56,48 +56,62 @@ def _cache_key(prefix: str, *args) -> str:
 
 
 def get_cached(key: str) -> dict | list | None:
-    mode = _get_cache_mode()
-    if mode == "redis":
-        data = _redis_client.get(key)
-        if data:
-            return json.loads(data)
-        return None
-    else:
-        # In-memory fallback
-        entry = _memory_cache.get(key)
-        if entry and entry["expires"] > time.time():
-            return entry["value"]
-        if entry:
-            del _memory_cache[key]
-        return None
+    try:
+        mode = _get_cache_mode()
+        if mode == "redis":
+            data = _redis_client.get(key)
+            if data:
+                return json.loads(data)
+            return None
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Redis get failed for key {key}, falling back to memory: {e}")
+
+    # In-memory fallback
+    entry = _memory_cache.get(key)
+    if entry and entry["expires"] > time.time():
+        return entry["value"]
+    if entry:
+        del _memory_cache[key]
+    return None
 
 
 def set_cached(key: str, value: dict | list, ttl: int = 3600):
-    mode = _get_cache_mode()
-    if mode == "redis":
-        _redis_client.setex(key, ttl, json.dumps(value, default=str))
-    else:
-        # Prune expired items if cache grows too large to prevent memory leaks
-        now = time.time()
+    try:
+        mode = _get_cache_mode()
+        if mode == "redis":
+            _redis_client.setex(key, ttl, json.dumps(value, default=str))
+            return
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Redis set failed for key {key}, falling back to memory: {e}")
+
+    # In-memory fallback
+    now = time.time()
+    if len(_memory_cache) >= 1000:
+        expired_keys = [k for k, v in _memory_cache.items() if v["expires"] <= now]
+        for k in expired_keys:
+            del _memory_cache[k]
+        
+        # If still too large, evict the oldest entry (FIFO)
         if len(_memory_cache) >= 1000:
-            expired_keys = [k for k, v in _memory_cache.items() if v["expires"] <= now]
-            for k in expired_keys:
-                del _memory_cache[k]
+            oldest_key = next(iter(_memory_cache))
+            del _memory_cache[oldest_key]
             
-            # If still too large, evict the oldest entry (FIFO)
-            if len(_memory_cache) >= 1000:
-                oldest_key = next(iter(_memory_cache))
-                del _memory_cache[oldest_key]
-                
-        _memory_cache[key] = {"value": value, "expires": now + ttl}
+    _memory_cache[key] = {"value": value, "expires": now + ttl}
 
 
 def delete_cached(key: str):
-    mode = _get_cache_mode()
-    if mode == "redis":
-        _redis_client.delete(key)
-    else:
-        _memory_cache.pop(key, None)
+    try:
+        mode = _get_cache_mode()
+        if mode == "redis":
+            _redis_client.delete(key)
+            return
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Redis delete failed for key {key}, falling back to memory: {e}")
+
+    _memory_cache.pop(key, None)
 
 
 # --- Nutrition-specific caches ---

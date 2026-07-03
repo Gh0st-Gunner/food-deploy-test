@@ -32,6 +32,19 @@ def estimate_portion_task(job_id: str, class_name: str, image_s3_key: str,
         update_job(job_id, progress={**progress, "portion": "failed"})
         return {"error": str(e)}
 
+    # Try to load combined mask from S3 to avoid redundant SAM 2 runs
+    combined_mask = None
+    try:
+        mask_key = f"results/{job_id}/combined_mask.png"
+        mask_bytes = download_bytes(mask_key)
+        mask_img = Image.open(io.BytesIO(mask_bytes))
+        if mask_img.size != image.size:
+            mask_img = mask_img.resize(image.size, Image.NEAREST)
+        combined_mask = np.array(mask_img) > 128
+        print(f"Portion: Pre-segmented combined mask loaded successfully from S3 for job {job_id}.")
+    except Exception as e:
+        print(f"Portion: Pre-segmented combined mask not found or failed to load: {e}. Falling back to SAM 2 segmentation.")
+
     depth_pipeline = registry.get_depth_model()
     sam_model, sam_processor = registry.get_sam2()
     reference_height_cm = params.get("reference_height_cm")
@@ -40,6 +53,7 @@ def estimate_portion_task(job_id: str, class_name: str, image_s3_key: str,
         image=image,
         class_name=class_name,
         depth_pipeline=depth_pipeline,
+        ingredient_masks=[{"mask": combined_mask}] if combined_mask is not None else None,
         reference_height_cm=reference_height_cm,
         sam_model=sam_model,
         sam_processor=sam_processor,
