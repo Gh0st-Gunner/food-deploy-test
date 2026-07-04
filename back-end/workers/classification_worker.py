@@ -14,7 +14,7 @@ from PIL import Image
 registry = ModelRegistry()
 
 
-@celery.task(bind=True, queue="classification")
+@celery.task(bind=True, queue="classification", time_limit=180, soft_time_limit=150)
 def classify_food(self, job_id: str, image_s3_key: str, model_names: list = None):
     """Classify a food image and return the consensus class name."""
     update_job(job_id, status="running", started_at=datetime.utcnow(),

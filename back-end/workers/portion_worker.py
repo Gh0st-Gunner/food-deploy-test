@@ -12,7 +12,7 @@ from PIL import Image
 registry = ModelRegistry()
 
 
-@celery.task(queue="detection")
+@celery.task(queue="detection", time_limit=180, soft_time_limit=150)
 def estimate_portion_task(job_id: str, class_name: str, image_s3_key: str,
                           ingredient_data: dict = None, params: dict = None):
     """Estimate portion size using area ratio + depth visualization."""
@@ -28,6 +28,18 @@ def estimate_portion_task(job_id: str, class_name: str, image_s3_key: str,
     try:
         image_bytes = download_bytes(image_s3_key)
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        
+        # Downscale image to max 1024px to optimize memory and processing speed
+        MAX_SIZE = 1024
+        w, h = image.size
+        if w > MAX_SIZE or h > MAX_SIZE:
+            scale = MAX_SIZE / max(w, h)
+            new_w, new_h = int(w * scale), int(h * scale)
+            try:
+                resample_filter = Image.Resampling.BILINEAR
+            except AttributeError:
+                resample_filter = Image.BILINEAR
+            image = image.resize((new_w, new_h), resample_filter)
     except Exception as e:
         update_job(job_id, progress={**progress, "portion": "failed"})
         return {"error": str(e)}

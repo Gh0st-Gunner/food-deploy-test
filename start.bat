@@ -15,7 +15,7 @@ start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
 
 echo Waiting for Docker Desktop to be ready...
 :wait_docker
-timeout /t 5 >nul
+ping 127.0.0.1 -n 6 >nul
 docker info >nul 2>&1
 if %errorlevel% equ 0 goto docker_started
 echo Retrying connection to Docker...
@@ -37,7 +37,7 @@ if %errorlevel% equ 0 goto tunnel_running
 
 echo Cloudflared service is not running. Attempting to start service...
 sc start Cloudflared >nul 2>&1
-timeout /t 3 >nul
+ping 127.0.0.1 -n 4 >nul
 sc query Cloudflared 2>nul | findstr /i "RUNNING" >nul
 if %errorlevel% equ 0 goto tunnel_started
 
@@ -71,5 +71,4 @@ echo [Admin Dashboard]
 echo Local URL:    http://localhost:10800/admin.html
 echo External URL: https://munchin.thegunner.uk/admin.html
 echo ===================================================
-echo.
-pause
+echo Startup complete.

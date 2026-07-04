@@ -74,6 +74,8 @@ services:
       VNFOOD_USDA_API_KEY: ${VNFOOD_USDA_API_KEY:-}
       VNFOOD_OLLAMA_HOST: http://host.docker.internal:11434
       VNFOOD_GEMINI_API_KEY: ${VNFOOD_GEMINI_API_KEY:-}
+      OMP_NUM_THREADS: 1
+      MKL_NUM_THREADS: 1
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -87,7 +89,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A workers.celery_app worker -Q classification -c 2 --loglevel=info
+    command: celery -A workers.celery_app worker -Q classification --pool=solo --loglevel=info
     volumes:
       - ./back-end:/app/back-end
       - ./models:/app/models
@@ -104,6 +106,8 @@ services:
       VNFOOD_WORKER_PRELOAD_MODELS: classification
       VNFOOD_OLLAMA_HOST: http://host.docker.internal:11434
       VNFOOD_GEMINI_API_KEY: ${VNFOOD_GEMINI_API_KEY:-}
+      OMP_NUM_THREADS: 1
+      MKL_NUM_THREADS: 1
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -115,9 +119,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A workers.celery_app worker -Q detection -c 1 --loglevel=info
+    command: celery -A workers.celery_app worker -Q detection --pool=solo --loglevel=info
     volumes:
       - ./back-end:/app/back-end
+      - hf-cache:/root/.cache/huggingface
     environment:
       PYTHONPATH: /app/back-end
       VNFOOD_DATABASE_URL: postgresql://vnfood:vnfood@db:5432/vnfood
@@ -128,7 +133,9 @@ services:
       VNFOOD_S3_ACCESS_KEY: minioadmin
       VNFOOD_S3_SECRET_KEY: minioadmin
       VNFOOD_S3_BUCKET: vn-food-images
-      VNFOOD_WORKER_PRELOAD_MODELS: dino,sam2,depth
+      VNFOOD_WORKER_PRELOAD_MODELS: "dino,sam2,depth"
+      OMP_NUM_THREADS: 1
+      MKL_NUM_THREADS: 1
     deploy:
       resources:
         reservations:
@@ -189,3 +196,4 @@ volumes:
   pgdata:
   redisdata:
   miniodata:
+  hf-cache:

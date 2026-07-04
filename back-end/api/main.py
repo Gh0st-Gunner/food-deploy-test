@@ -31,8 +31,10 @@ async def lifespan(app: FastAPI):
     # Startup: initialize database tables
     init_db()
     
-    # Preload models in a background thread to prevent blocking startup
-    threading.Thread(target=preload_all_models, daemon=True).start()
+    # Preload models in a background thread only if cache falls back to in-memory mode (local fallback)
+    from core.cache import _get_cache_mode
+    if _get_cache_mode() == "memory":
+        threading.Thread(target=preload_all_models, daemon=True).start()
     
     yield
 

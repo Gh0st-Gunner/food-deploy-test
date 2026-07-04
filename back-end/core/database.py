@@ -189,10 +189,57 @@ def create_job(mode: str, image_url: str = None, image_s3_key: str = None,
 
 
 def get_job(job_id: str) -> Optional[Job]:
-    """Get a job by ID."""
+    """Get a job by ID, with automatic timeout verification for stale jobs."""
     session = get_session()
     try:
         job = session.query(Job).filter(Job.id == job_id).first()
+        if job and job.status in ["queued", "running"]:
+            # Check for stale job timeout
+            elapsed = (datetime.utcnow() - job.created_at).total_seconds()
+            
+            # If a job is running or queued for too long (e.g. 3 minutes), mark it as failed.
+            # This is a fallback safeguard in case workers crash, deadlock, or restart.
+            timeout_limit = 180.0
+            if elapsed > timeout_limit:
+                job.status = "failed"
+                job.error = f"Job timed out after {int(elapsed)} seconds. The worker process may have restarted or crashed."
+                job.completed_at = datetime.utcnow()
+                session.commit()
+                session.refresh(job)
+                
+                # Try to publish update to Redis pubsub as well
+                try:
+                    from core.cache import _get_cache_mode, get_redis
+                    import json
+                    if _get_cache_mode() == "redis":
+                        redis_client = get_redis()
+                        job_dict = {
+                            "id": str(job.id),
+                            "status": job.status,
+                            "mode": job.mode,
+                            "image_s3_key": job.image_s3_key,
+                            "image_url": job.image_url,
+                            "class_name": job.class_name,
+                            "confidence": job.confidence,
+                            "predictions": job.predictions,
+                            "nutrition": job.nutrition,
+                            "nutrition_source": job.nutrition_source,
+                            "ingredients": job.ingredients,
+                            "overlay_s3_key": job.overlay_s3_key,
+                            "portion": job.portion,
+                            "depth_map_s3_key": job.depth_map_s3_key,
+                            "error": job.error,
+                            "models": job.models,
+                            "box_threshold": job.box_threshold,
+                            "reference_height_cm": job.reference_height_cm,
+                            "progress": job.progress,
+                            "created_at": job.created_at.isoformat() if job.created_at else None,
+                            "started_at": job.started_at.isoformat() if job.started_at else None,
+                            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                        }
+                        redis_client.publish(f"job_updates:{job_id}", json.dumps(job_dict))
+                except Exception as pe:
+                    print(f"Failed to publish auto-timeout update to Redis: {pe}")
         return job
     finally:
         session.close()
